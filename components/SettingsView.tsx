@@ -250,7 +250,7 @@ const SettingsView: React.FC = () => {
                       onChange={e => setFireflyConfig({...fireflyConfig, sheets_csv_url: e.target.value})} 
                       className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-5 text-sm text-white outline-none focus:border-blue-500/50" 
                     />
-                    <p className="text-[9px] text-white/20 ml-4 font-mono">Formato: Archivo > Publicar en la web > CSV</p>
+                    <p className="text-[9px] text-white/20 ml-4 font-mono">Formato: Archivo - Publicar en la web - CSV</p>
                  </div>
               </div>
             </div>
