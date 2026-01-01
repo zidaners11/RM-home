@@ -89,7 +89,7 @@ const FinanceView: React.FC = () => {
       accumulatedSavings,
       activeBudgets: currentBudgets
     });
-    setAiInsight(result);
+    setAiInsight(result ?? null);
     setAiLoading(false);
   };
 

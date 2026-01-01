@@ -5,6 +5,11 @@ import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip } from 'recharts';
 import { fetchHAStates, callHAService } from '../homeAssistantService';
 import { getGlobalNexusStatus } from '../geminiService';
 
+type State = {
+  entity_id: string;
+  state: string;
+};
+
 const Dashboard: React.FC = () => {
   const [haStates, setHaStates] = useState<any[]>([]);
   const [haConfig, setHaConfig] = useState<any>(null);
@@ -27,10 +32,10 @@ const Dashboard: React.FC = () => {
     if (states) {
       setHaStates(states);
       const report = await getGlobalNexusStatus({
-        alarm: states.find(s => s.entity_id === config.alarm_entity)?.state || 'unknown',
-        active_alerts: states.filter(s => s.entity_id.startsWith('binary_sensor') && s.state === 'on').length,
-        solar: states.find(s => s.entity_id === config.solar_production_entity)?.state || 0
-      });
+	alarm: states.find((s: State) => s.entity_id === config.alarm_entity)?.state || 'unknown',
+        active_alerts: states.filter((s: State) => s.entity_id.startsWith('binary_sensor') && s.state === 'on').length,
+        solar: states.find((s: State) => s.entity_id === config.solar_production_entity)?.state || 0
+              });
       setAiReport(report);
       setLoadingAI(false);
     }
