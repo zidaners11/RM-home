@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { HomeAssistantConfig, FireflyConfig } from '../types';
+import { HomeAssistantConfig, FireflyConfig, WidgetConfig, WidgetType } from '../types';
 import { fetchHAStates, testHAConnection } from '../homeAssistantService';
 
 const SettingsView: React.FC = () => {
@@ -17,15 +17,19 @@ const SettingsView: React.FC = () => {
   const [fireflyConfig, setFireflyConfig] = useState<FireflyConfig>({
     url: '', token: '', use_sheets_mirror: true, sheets_csv_url: ''
   });
+  const [dashboardWidgets, setDashboardWidgets] = useState<WidgetConfig[]>([]);
+  const [userProfile, setUserProfile] = useState({ username: '', password: '' });
 
   const [haStates, setHaStates] = useState<any[]>([]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success'>('idle');
   const [testStatus, setTestStatus] = useState<{loading: boolean, result: string | null}>({loading: false, result: null});
-  const [activeTab, setActiveTab] = useState<'core' | 'energy' | 'security' | 'weather' | 'finance'>('core');
+  const [activeTab, setActiveTab] = useState<'core' | 'desktop' | 'energy' | 'security' | 'weather' | 'finance' | 'profile'>('core');
 
   useEffect(() => {
     const savedHA = localStorage.getItem('nexus_ha_config');
     const savedFF = localStorage.getItem('nexus_firefly_config');
+    const savedWidgets = localStorage.getItem('nexus_dashboard_widgets_v4');
+    const savedUser = localStorage.getItem('nexus_user_db');
     
     if (savedHA) {
       const parsed = JSON.parse(savedHA);
@@ -33,6 +37,8 @@ const SettingsView: React.FC = () => {
       loadHAEntities(parsed.url, parsed.token);
     }
     if (savedFF) setFireflyConfig(JSON.parse(savedFF));
+    if (savedWidgets) setDashboardWidgets(JSON.parse(savedWidgets));
+    if (savedUser) setUserProfile(JSON.parse(savedUser));
   }, []);
 
   const loadHAEntities = async (url: string, token: string) => {
@@ -61,11 +67,33 @@ const SettingsView: React.FC = () => {
     setStatus('saving');
     localStorage.setItem('nexus_ha_config', JSON.stringify(haConfig));
     localStorage.setItem('nexus_firefly_config', JSON.stringify(fireflyConfig));
+    localStorage.setItem('nexus_dashboard_widgets_v4', JSON.stringify(dashboardWidgets));
+    localStorage.setItem('nexus_user_db', JSON.stringify(userProfile));
+    
     setTimeout(() => {
       setStatus('success');
       loadHAEntities(haConfig.url, haConfig.token);
     }, 800);
     setTimeout(() => setStatus('idle'), 3000);
+  };
+
+  const addWidget = () => {
+    const newWidget: WidgetConfig = {
+      id: Date.now().toString(),
+      type: 'sensor',
+      title: 'Nuevo Widget',
+      entity_id: '',
+      colSpan: 1
+    };
+    setDashboardWidgets([...dashboardWidgets, newWidget]);
+  };
+
+  const removeWidget = (id: string) => {
+    setDashboardWidgets(dashboardWidgets.filter(w => w.id !== id));
+  };
+
+  const updateWidget = (id: string, updates: Partial<WidgetConfig>) => {
+    setDashboardWidgets(dashboardWidgets.map(w => w.id === id ? {...w, ...updates} : w));
   };
 
   const SearchableEntitySelect = ({ label, value, onChange, filterType, multi = false }: { label: string, value: any, onChange: (val: any) => void, filterType?: string, multi?: boolean }) => {
@@ -137,15 +165,17 @@ const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col gap-8 animate-in fade-in duration-500 overflow-hidden pb-8">
+    <div className="h-full flex flex-col gap-8 animate-in fade-in duration-500 overflow-hidden pb-24">
       
       <div className="flex gap-4 overflow-x-auto no-scrollbar shrink-0 px-2">
         {[
           {id: 'core', label: 'HA Core'},
+          {id: 'desktop', label: 'Escritorio'},
           {id: 'energy', label: 'Energía'},
           {id: 'security', label: 'Seguridad'},
           {id: 'weather', label: 'Nodos Clima'},
-          {id: 'finance', label: 'Finanzas'}
+          {id: 'finance', label: 'Finanzas'},
+          {id: 'profile', label: 'Mi Perfil'}
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.3em] transition-all shrink-0 ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/40 scale-105' : 'glass text-white/30 hover:bg-white/10'}`}>{tab.label}</button>
         ))}
@@ -153,15 +183,27 @@ const SettingsView: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto pr-4 no-scrollbar">
         <div className="space-y-8">
+          {activeTab === 'profile' && (
+            <div className="glass rounded-[48px] p-10 border border-white/10 space-y-8">
+               <h2 className="text-2xl font-black text-white uppercase tracking-widest">Identidad del Nodo Maestro</h2>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                     <label className="text-[11px] font-black uppercase text-white/20 ml-4">Nuevo Identificador de Usuario</label>
+                     <input value={userProfile.username} onChange={e => setUserProfile({...userProfile, username: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-5 text-sm text-white" />
+                  </div>
+                  <div className="space-y-2">
+                     <label className="text-[11px] font-black uppercase text-white/20 ml-4">Nueva Clave de Encriptación</label>
+                     <input type="password" value={userProfile.password} onChange={e => setUserProfile({...userProfile, password: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-5 text-sm text-white" />
+                  </div>
+               </div>
+               <p className="text-[10px] text-white/20 uppercase font-black tracking-widest leading-relaxed">Nota: Los cambios en el perfil requerirán reiniciar la sesión si cierras el terminal.</p>
+            </div>
+          )}
+
           {activeTab === 'core' && (
             <div className="glass rounded-[48px] p-10 border border-white/10 space-y-8">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-black text-white uppercase tracking-widest">RM_Core_Handshake</h2>
-                {testStatus.result && (
-                  <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${testStatus.result.includes('CONECTADO') ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                    {testStatus.result}
-                  </div>
-                )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <div className="space-y-2">
@@ -180,6 +222,50 @@ const SettingsView: React.FC = () => {
               >
                 {testStatus.loading ? 'COMPROBANDO ENLACE...' : 'TEST DE CONEXIÓN'}
               </button>
+            </div>
+          )}
+
+          {activeTab === 'desktop' && (
+            <div className="space-y-6">
+               <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest">Matriz de Escritorio</h2>
+                  <button onClick={addWidget} className="px-6 py-3 bg-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest">Nuevo Widget</button>
+               </div>
+               
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {dashboardWidgets.map((w, idx) => (
+                    <div key={w.id} className="glass p-8 rounded-[32px] border border-white/10 space-y-6">
+                       <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-white/20 font-mono">WIDGET_ID: {w.id}</span>
+                          <button onClick={() => removeWidget(w.id)} className="text-red-500/40 hover:text-red-500 transition-colors">ELIMINAR</button>
+                       </div>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                             <label className="text-[9px] uppercase font-black text-white/20">Título</label>
+                             <input value={w.title} onChange={e => updateWidget(w.id, {title: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white" />
+                          </div>
+                          <div className="space-y-1">
+                             <label className="text-[9px] uppercase font-black text-white/20">Tipo</label>
+                             <select value={w.type} onChange={e => updateWidget(w.id, {type: e.target.value as WidgetType})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white appearance-none">
+                                <option value="sensor">Sensor Numérico</option>
+                                <option value="switch">Luz / Interruptor</option>
+                                <option value="climate">Climatizador</option>
+                                <option value="checklist">Lista Compra</option>
+                                <option value="chart">Gráfico Histórico</option>
+                             </select>
+                          </div>
+                       </div>
+                       {(w.type !== 'checklist') && (
+                          <SearchableEntitySelect 
+                             label="Entidad HA" 
+                             value={w.entity_id} 
+                             onChange={v => updateWidget(w.id, {entity_id: v})} 
+                             filterType={w.type === 'climate' ? 'climate' : w.type === 'switch' ? 'switch' : 'sensor'} 
+                          />
+                       )}
+                    </div>
+                  ))}
+               </div>
             </div>
           )}
 
@@ -209,7 +295,7 @@ const SettingsView: React.FC = () => {
           )}
 
           {activeTab === 'weather' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="space-y-6">
               {['torrejon', 'navalacruz', 'santibanez'].map((key) => {
                 const node = haConfig.weather_nodes?.[key as 'torrejon'] || { id: key, name: key };
                 return (

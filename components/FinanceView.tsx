@@ -60,7 +60,16 @@ const FinanceView: React.FC = () => {
   };
 
   const currentCycle = getCycleMonth();
-  const currentBudgets = budgets.filter(b => b.month === currentCycle);
+  
+  // Ordenar presupuestos por porcentaje de consumo (de mayor a menor)
+  const currentBudgets = budgets
+    .filter(b => b.month === currentCycle)
+    .sort((a, b) => {
+      const percentA = (a.spent / a.limit) * 100;
+      const percentB = (b.spent / b.limit) * 100;
+      return percentB - percentA;
+    });
+
   const currentSummary = summaries.find(s => s.month === currentCycle);
 
   const calculateAccumulatedSavings = () => {
@@ -90,7 +99,6 @@ const FinanceView: React.FC = () => {
       activeBudgets: currentBudgets
     });
     setAiInsight(result ?? null);
-//    setAiInsight(result);
     setAiLoading(false);
   };
 
@@ -103,6 +111,16 @@ const FinanceView: React.FC = () => {
     return 'text-white/60 border-white/10 bg-white/5';
   };
 
+  // Lógica de agrupación por fechas
+  const groupedTransactions = transactions.reduce((groups: { [key: string]: any[] }, tx) => {
+    const date = tx.attributes.transactions[0].date;
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(tx);
+    return groups;
+  }, {});
+
+  const sortedDates = Object.keys(groupedTransactions).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
   if (loading) return (
     <div className="h-[60vh] flex flex-col items-center justify-center">
       <div className="w-16 h-16 border-4 border-white/5 border-t-blue-500 rounded-full animate-spin mb-6" />
@@ -111,7 +129,7 @@ const FinanceView: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-6 h-full overflow-hidden pb-4">
+    <div className="flex flex-col gap-6 pb-24">
        
        {/* Cabecera de Mando */}
        <div className="flex justify-between items-center shrink-0 glass px-8 py-5 rounded-[32px] border border-white/10">
@@ -157,7 +175,7 @@ const FinanceView: React.FC = () => {
          </div>
        )}
 
-       {/* Panel de IA Ancho Completo */}
+       {/* Panel de IA */}
        <div className={`glass rounded-[32px] border transition-all duration-700 shrink-0 ${aiInsight ? 'border-blue-500/40 bg-blue-500/5' : 'border-white/5'}`}>
           <div className="px-8 py-4 flex items-center justify-between gap-8">
              <div className="flex items-center gap-5 shrink-0">
@@ -184,45 +202,70 @@ const FinanceView: React.FC = () => {
           </div>
        </div>
 
-       {/* Sección Detallada (Historial + Presupuestos) */}
-       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1 min-h-0">
+       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           
-          {/* Historial de Transacciones (Término Medio) */}
-          <div className="lg:col-span-3 glass rounded-[40px] p-8 border border-white/10 flex flex-col min-h-0">
-             <div className="flex justify-between items-center mb-6">
+          {/* Historial de Transacciones AGRUPADO */}
+          <div className="lg:col-span-3 glass rounded-[40px] p-8 border border-white/10 flex flex-col min-h-[500px]">
+             <div className="flex justify-between items-center mb-8">
                 <h2 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Historial de Flujos</h2>
-                <span className="text-[10px] font-mono text-white/20 bg-white/5 px-3 py-1 rounded-full">REALTIME_INGESTION_NOMINAL</span>
+                <span className="text-[10px] font-mono text-white/20 bg-white/5 px-3 py-1 rounded-full uppercase">Ingesta_Agrupada_v3</span>
              </div>
 
-             <div className="flex-1 overflow-y-auto pr-3 space-y-3 no-scrollbar">
-                {transactions.map((tx, i) => {
-                  const d = tx.attributes.transactions[0];
-                  const val = parseFloat(d.amount);
+             <div className="space-y-12">
+                {sortedDates.map((date) => {
+                  const dayTxs = groupedTransactions[date];
+                  // Sumamos todos los movimientos del día
+                  const daySum = dayTxs.reduce((acc, curr) => acc + parseFloat(curr.attributes.transactions[0].amount), 0);
+                  
+                  // Definimos color y signo basado en si es neto gasto o neto ingreso
+                  // Basado en el feedback: Gastos (Rojo/Positivo en origen) -> Mostrar Negativo. Ingresos (Verde/Negativo en origen) -> Mostrar Positivo.
+                  const isNetExpense = daySum > 0;
+                  
                   return (
-                    <div key={i} className="flex justify-between items-center p-5 bg-white/[0.03] hover:bg-white/[0.06] rounded-[24px] border border-white/5 transition-all group">
-                       <div className="flex items-center gap-5">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-[10px] uppercase border transition-transform group-hover:scale-110 ${getCategoryColor(d.category_name)}`}>
-                             {d.category_name.substring(0,3)}
-                          </div>
-                          <div>
-                             <p className="text-[13px] font-black text-white uppercase tracking-tight line-clamp-1">{d.description}</p>
-                             <p className="text-[11px] text-white/40 font-mono mt-1 font-bold">{d.date}</p>
-                          </div>
-                       </div>
-                       <div className="text-right">
-                          <p className={`text-lg font-black tabular-nums ${val < 0 ? 'text-green-400' : 'text-red-400'}`}>
-                             {val < 0 ? '' : '+'}{Math.abs(val).toLocaleString('es-ES', { minimumFractionDigits: 2 })}€
-                          </p>
-                          <p className="text-[9px] text-white/20 uppercase font-black tracking-widest mt-1">{d.category_name}</p>
-                       </div>
+                    <div key={date} className="space-y-6">
+                      <div className="flex items-center justify-between px-2">
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="h-px w-8 bg-white/10" />
+                          <span className="text-[11px] font-black uppercase tracking-[0.4em] text-white/40">{date}</span>
+                          <div className="h-px flex-1 bg-white/5" />
+                        </div>
+                        <div className={`ml-4 px-4 py-1 rounded-full border text-[10px] font-black tabular-nums transition-all ${daySum !== 0 ? (isNetExpense ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400') : 'bg-white/5 border-white/10 text-white/20'}`}>
+                           {isNetExpense ? '-' : '+'}{Math.abs(daySum).toLocaleString('es-ES', { minimumFractionDigits: 2 })}€
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {dayTxs.map((tx, i) => {
+                          const d = tx.attributes.transactions[0];
+                          const val = parseFloat(d.amount);
+                          const isExpense = val > 0; // Suponiendo que en tu CSV los gastos vienen positivos y los ingresos negativos
+                          return (
+                            <div key={i} className="flex justify-between items-center p-5 bg-white/[0.02] hover:bg-white/[0.05] rounded-[24px] border border-white/5 transition-all group">
+                               <div className="flex items-center gap-5">
+                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-[10px] uppercase border transition-transform group-hover:scale-110 ${getCategoryColor(d.category_name)}`}>
+                                     {d.category_name.substring(0,3)}
+                                  </div>
+                                  <div>
+                                     <p className="text-[13px] font-black text-white uppercase tracking-tight line-clamp-1">{d.description}</p>
+                                     <p className="text-[9px] text-white/20 uppercase font-black tracking-widest mt-1">{d.category_name}</p>
+                                  </div>
+                               </div>
+                               <div className="text-right">
+                                  <p className={`text-lg font-black tabular-nums ${isExpense ? 'text-red-400' : 'text-green-400'}`}>
+                                     {isExpense ? '-' : '+'}{Math.abs(val).toLocaleString('es-ES', { minimumFractionDigits: 2 })}€
+                                  </p>
+                               </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
              </div>
           </div>
 
-          {/* Presupuestos y Límites (Más Ancho y Legible) */}
-          <div className="lg:col-span-2 glass rounded-[40px] p-8 border border-white/10 flex flex-col min-h-0">
+          {/* Presupuestos y Límites (ORDENADOS POR CONSUMO) */}
+          <div className="lg:col-span-2 glass rounded-[40px] p-8 border border-white/10 flex flex-col h-fit">
              <div className="flex items-center gap-4 mb-8">
                 <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-400 border border-blue-500/20">
                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
@@ -230,12 +273,12 @@ const FinanceView: React.FC = () => {
                 <h3 className="text-sm font-black uppercase tracking-widest text-white/80">Control de Presupuestos</h3>
              </div>
 
-             <div className="flex-1 overflow-y-auto space-y-8 no-scrollbar pr-3">
+             <div className="space-y-10">
                 {currentBudgets.length > 0 ? currentBudgets.map((b, i) => {
                    const percent = Math.min(100, (b.spent / b.limit) * 100);
                    const isCritical = percent > 90;
                    return (
-                      <div key={i} className="space-y-3">
+                      <div key={i} className="space-y-4">
                          <div className="flex justify-between items-end px-1">
                             <div>
                                <p className="text-[11px] font-black text-white/40 uppercase tracking-widest">{b.category}</p>
@@ -244,7 +287,7 @@ const FinanceView: React.FC = () => {
                                   <span className="text-white/20 text-xs ml-2">/ {b.limit.toLocaleString('es-ES')}€</span>
                                </p>
                             </div>
-                            <div className={`text-xs font-black px-3 py-1 rounded-lg ${isCritical ? 'bg-red-500 text-white' : 'bg-white/5 text-white/40'}`}>
+                            <div className={`text-xs font-black px-3 py-1 rounded-lg ${isCritical ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'bg-white/5 text-white/40'}`}>
                                {percent.toFixed(0)}%
                             </div>
                          </div>
@@ -257,7 +300,7 @@ const FinanceView: React.FC = () => {
                       </div>
                    );
                 }) : (
-                   <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-20">
+                   <div className="py-20 flex flex-col items-center justify-center text-center opacity-20">
                       <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                       <p className="text-xs font-black uppercase tracking-widest">No hay presupuestos activos en este ciclo</p>
                    </div>

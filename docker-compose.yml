@@ -1,8 +1,19 @@
-version: "3.9"
+version: '3.8'
+
 services:
-  nexus-home-hub:
-    build: .
+  nexus-hub:
+    build:
+      context: .
+      args:
+        - API_KEY=${GEMINI_API_KEY}
+    container_name: nexus_home_hub
     ports:
-      - "100:100"
-    env_file:
-      - .env
+      - "8080:80"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

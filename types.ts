@@ -1,13 +1,14 @@
 
-export type WidgetType = 'value' | 'area-chart' | 'bar-chart' | 'gauge' | 'switch' | 'environment';
+export type WidgetType = 'sensor' | 'chart' | 'switch' | 'climate' | 'checklist' | 'energy-quick' | 'button';
 
 export interface WidgetConfig {
   id: string;
   entity_id: string;
   type: WidgetType;
   title: string;
+  icon?: string;
   unit?: string;
-  colSpan?: 1 | 2;
+  colSpan: 1 | 2 | 3;
   color?: string;
 }
 

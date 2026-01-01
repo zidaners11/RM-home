@@ -1,7 +1,19 @@
 
+/**
+ * Nexus Home Assistant Bridge - Master Control Edition
+ */
+
+const getCleanBaseUrl = (url: string) => {
+  let clean = url.trim().replace(/\/+$/, '');
+  if (clean.endsWith('/api')) {
+    clean = clean.slice(0, -4);
+  }
+  return clean;
+};
+
 export async function fetchHAStates(url: string, token: string) {
   try {
-    const cleanUrl = url.trim().replace(/\/+$/, '');
+    const cleanUrl = getCleanBaseUrl(url);
     const response = await fetch(`${cleanUrl}/api/states`, {
       method: 'GET',
       headers: {
@@ -17,12 +29,10 @@ export async function fetchHAStates(url: string, token: string) {
   }
 }
 
-export async function fetchHAHistory(url: string, token: string, entityId: string, hours: number = 72) {
+export async function fetchHAHistory(url: string, token: string, entityId: string, hours: number = 24) {
   try {
-    const cleanUrl = url.trim().replace(/\/+$/, '');
-    // Calculamos el tiempo atrás solicitado (por defecto 72h)
+    const cleanUrl = getCleanBaseUrl(url);
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-    
     const response = await fetch(`${cleanUrl}/api/history/period/${startTime}?filter_entity_id=${entityId}`, {
       method: 'GET',
       headers: {
@@ -31,19 +41,36 @@ export async function fetchHAHistory(url: string, token: string, entityId: strin
       },
       mode: 'cors'
     });
-    
     if (!response.ok) return [];
     const data = await response.json();
     return data[0] || [];
   } catch (error) {
-    console.error("Error fetching HA History:", error);
     return [];
+  }
+}
+
+export async function callHAService(url: string, token: string, domain: string, service: string, serviceData: any) {
+  try {
+    const cleanUrl = getCleanBaseUrl(url);
+    const response = await fetch(`${cleanUrl}/api/services/${domain}/${service}`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token.trim()}`,
+        "Content-Type": "application/json",
+      },
+      mode: 'cors',
+      body: JSON.stringify(serviceData),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("HA Service Call Error:", error);
+    return null;
   }
 }
 
 export async function testHAConnection(url: string, token: string) {
   try {
-    const cleanUrl = url.trim().replace(/\/+$/, '');
+    const cleanUrl = getCleanBaseUrl(url);
     const response = await fetch(`${cleanUrl}/api/config`, {
       method: 'GET',
       headers: {
@@ -59,24 +86,5 @@ export async function testHAConnection(url: string, token: string) {
     return { success: false, error: `HTTP_${response.status}` };
   } catch (error: any) {
     return { success: false, error: error.message };
-  }
-}
-
-export async function callHAService(url: string, token: string, domain: string, service: string, entity_id: string) {
-  try {
-    const cleanUrl = url.trim().replace(/\/+$/, '');
-    const response = await fetch(`${cleanUrl}/api/services/${domain}/${service}`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token.trim()}`,
-        "Content-Type": "application/json",
-      },
-      mode: 'cors',
-      body: JSON.stringify({ entity_id }),
-    });
-    return await response.json();
-  } catch (error) {
-    console.error("HA Service Call Error:", error);
-    return null;
   }
 }

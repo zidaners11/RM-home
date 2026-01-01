@@ -19,9 +19,31 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.DASHBOARD);
   const [showAI, setShowAI] = useState<boolean>(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    // Verificar si hay una sesión activa guardada
+    const session = localStorage.getItem('nexus_session_active');
+    if (session === 'true') {
+      setIsAuthenticated(true);
+    }
+    setCheckingAuth(false);
+  }, []);
+
+  const handleLogin = () => {
+    localStorage.setItem('nexus_session_active', 'true');
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('nexus_session_active');
+    setIsAuthenticated(false);
+  };
+
+  if (checkingAuth) return null;
 
   if (!isAuthenticated) {
-    return <Login onLogin={() => setIsAuthenticated(true)} />;
+    return <Login onLogin={handleLogin} />;
   }
 
   const renderContent = () => {
@@ -58,7 +80,7 @@ const App: React.FC = () => {
       <Sidebar 
         activeSection={activeSection} 
         onSectionChange={setActiveSection} 
-        onLogout={() => setIsAuthenticated(false)}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 relative z-10 p-4 md:p-6 flex flex-col h-full overflow-hidden pb-24 md:pb-6">
@@ -67,7 +89,7 @@ const App: React.FC = () => {
             <h1 className="text-xl md:text-2xl font-light tracking-tight text-white/90">
               RM <span className="font-bold text-blue-400">Home</span>
             </h1>
-            <p className="text-white/40 text-[8px] md:text-[10px] uppercase tracking-widest font-bold">Admin_Console // Hub_v4.0</p>
+            <p className="text-white/40 text-[8px] md:text-[10px] uppercase tracking-widest font-bold">Admin_Console // Persistent_Hub_v4.1</p>
           </div>
           
           <button 
