@@ -1,0 +1,15 @@
+
+version: '3.8'
+
+services:
+  nexus-hub:
+    build:
+      context: .
+      args:
+        - API_KEY=${GEMINI_API_KEY}
+    container_name: nexus_home_hub
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
