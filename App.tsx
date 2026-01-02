@@ -22,7 +22,6 @@ const App: React.FC = () => {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    // Verificar si hay una sesión activa guardada
     const session = localStorage.getItem('nexus_session_active');
     if (session === 'true') {
       setIsAuthenticated(true);
@@ -83,21 +82,21 @@ const App: React.FC = () => {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 relative z-10 p-4 md:p-6 flex flex-col h-full overflow-hidden pb-24 md:pb-6">
-        <header className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
+      <main className="flex-1 relative z-10 p-3 md:p-6 flex flex-col h-full overflow-hidden pb-24 md:pb-6">
+        <header className="flex justify-between items-center mb-3 md:mb-6 shrink-0 px-2">
           <div>
             <h1 className="text-xl md:text-2xl font-light tracking-tight text-white/90">
               RM <span className="font-bold text-blue-400">Home</span>
             </h1>
-            <p className="text-white/40 text-[8px] md:text-[10px] uppercase tracking-widest font-bold">Admin_Console // Persistent_Hub_v4.1</p>
+            <p className="text-white/40 text-[7px] md:text-[9px] uppercase tracking-[0.4em] font-black">Consola de Control // Hub Persistente</p>
           </div>
           
           <button 
             onClick={() => setShowAI(!showAI)}
-            className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 glass rounded-full hover:bg-white/10 transition-all border-blue-400/30 group"
+            className="flex items-center gap-2 px-3 py-1.5 glass rounded-full hover:bg-white/10 transition-all border-blue-400/30 group"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse group-hover:scale-125 transition-transform" />
-            <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest">RM AI CORE</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+            <span className="text-[8px] md:text-xs font-black uppercase tracking-widest">IA Core</span>
           </button>
         </header>
 
