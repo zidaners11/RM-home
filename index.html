@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -15,46 +16,44 @@
             overflow: hidden;
             background-color: #020617;
         }
-        /* Glassmorphism Refinado */
         .glass {
-            background: rgba(15, 23, 42, 0.35);
-            backdrop-filter: blur(16px) saturate(160%);
-            -webkit-backdrop-filter: blur(16px) saturate(160%);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+            background: rgba(10, 15, 30, 0.4);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
         }
         .glass-dark {
-            background: rgba(2, 6, 23, 0.85);
-            backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px);
+            background: rgba(2, 6, 23, 0.9);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
-        /* Fondo Integrado */
         .nebula-bg {
-            background-image: linear-gradient(rgba(2, 6, 23, 0.65), rgba(2, 6, 23, 0.2)), url('https://i.redd.it/6qq8lk9qjqp21.jpg');
+            background-image: linear-gradient(rgba(2, 6, 23, 0.5), rgba(2, 6, 23, 0.3)), url('https://i.redd.it/6qq8lk9qjqp21.jpg');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
             min-height: 100vh;
         }
-        ::-webkit-scrollbar {
-            width: 4px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 10px; }
         
-        #nexus-map-container {
-            background: #000 !important;
-            width: 100%;
-            height: 100%;
-        }
         .leaflet-tile-pane {
             filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(110%);
+        }
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        .scanline::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, transparent, rgba(59, 130, 246, 0.05), transparent);
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
         }
     </style>
 <script type="importmap">
@@ -72,7 +71,7 @@
 }
 </script>
 </head>
-<body>
+<body class="nebula-bg scanline">
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
 </body>
