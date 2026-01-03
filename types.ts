@@ -1,5 +1,5 @@
 
-export type WidgetType = 'sensor' | 'chart' | 'switch' | 'climate' | 'checklist' | 'energy-quick' | 'button';
+export type WidgetType = 'sensor' | 'chart' | 'switch' | 'climate' | 'checklist' | 'button';
 
 export interface WidgetConfig {
   id: string;
@@ -12,14 +12,20 @@ export interface WidgetConfig {
   color?: string;
 }
 
-export interface WeatherNodeConfig {
-  id: string;
-  name: string;
-  camera_entity?: string;
-  temp_entity?: string;
-  humidity_entity?: string;
-  wind_entity?: string;
-  aqi_entity?: string;
+export interface VehicleConfig {
+  battery_entity: string;
+  odometer_entity: string;
+  fuel_entity: string;
+  service_km_entity: string;
+  saving_entity: string;
+  electric_use_entity: string;
+  avg_consumption_entity: string;
+  time_to_charge_entity: string;
+  km_today_entity: string;
+  charging_speed_entity: string;
+  status_entity: string;
+  refresh_button_entity: string; 
+  image_url: string; 
 }
 
 export interface HomeAssistantConfig {
@@ -27,8 +33,11 @@ export interface HomeAssistantConfig {
   token: string;
   pinnedEntities: string[];
   solar_production_entity?: string;
+  solar_daily_entity?: string;
+  solar_monthly_entity?: string;
   grid_consumption_entity?: string;
   grid_export_entity?: string; 
+  energy_cost_entity?: string;
   car_battery_entity?: string;
   invoice_entity?: string; 
   security_cameras: string[];
@@ -36,27 +45,32 @@ export interface HomeAssistantConfig {
   temperature_sensors: string[];
   tracked_people: string[];
   alarm_entity?: string;
+  vehicle: VehicleConfig;
+  custom_bg_url?: string; 
   weather_nodes: {
-    torrejon: WeatherNodeConfig;
-    navalacruz: WeatherNodeConfig;
-    santibanez: WeatherNodeConfig;
+    torrejon: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
+    navalacruz: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
+    santibanez: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
   };
 }
 
 export interface FireflyConfig {
   url: string;
   token: string;
-  proxy_url?: string;
-  main_account_id?: string;
-  savings_account_id?: string;
-  credit_card_id?: string;
   use_sheets_mirror?: boolean;
   sheets_csv_url?: string;
+  main_account_id?: string;
+  proxy_url?: string;
 }
 
-export interface AppConfig {
-  ha: HomeAssistantConfig;
-  firefly: FireflyConfig;
+export interface SensorData {
+  id: string;
+  name: string;
+  value: any;
+  unit: string;
+  icon: string;
+  type: string;
+  trend?: 'up' | 'down' | 'stable';
 }
 
 export interface UserLocation {
@@ -67,7 +81,7 @@ export interface UserLocation {
   lastSeen: string;
   battery: number;
   status: string;
-  history?: {lat: number, lng: number, time: string}[];
+  history?: { lat: number; lng: number; time: string }[];
 }
 
 export interface WeatherData {
@@ -79,25 +93,15 @@ export interface WeatherData {
   wind: number;
 }
 
-export interface SensorData {
-  id: string;
-  name: string;
-  value: number | string;
-  unit: string;
-  icon: string;
-  type: string;
-  trend?: 'up' | 'down' | 'stable';
-}
-
 export enum AppSection {
   DASHBOARD = 'dashboard',
   ENERGY = 'energy',
+  VEHICLE = 'vehicle',
   FINANCE = 'finance',
   FIREFLY = 'firefly',
   SECURITY = 'security',
   WEATHER = 'weather',
   MAPS = 'maps',
-  REMOTE = 'remote',
   SHEETS = 'sheets',
   SETTINGS = 'settings'
 }
