@@ -1,12 +1,9 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Always initialize with the apiKey named parameter using process.env.API_KEY.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-//const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
-
 export async function getGlobalNexusStatus(homeData: any) {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const systemInstruction = `Eres el RM Home Strategic Core. 
     Tu misión es proporcionar un informe ejecutivo de 360 grados.
     Debes incluir:
@@ -20,7 +17,6 @@ export async function getGlobalNexusStatus(homeData: any) {
     const prompt = `Analiza los siguientes datos internos: ${JSON.stringify(homeData)}.
     Utiliza tus herramientas de búsqueda para obtener las noticias de hoy en España y la actualidad de La Liga.`;
 
-    // Using gemini-3-pro-preview for complex reasoning tasks that require search grounding.
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
@@ -31,17 +27,14 @@ export async function getGlobalNexusStatus(homeData: any) {
       },
     });
 
-    // Extract grounding chunks for citations as required when using search tools.
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
-    // Access response.text as a property, not a method.
     return {
       text: response.text || "No se ha podido generar el informe estratégico.",
       sources: sources
     };
   } catch (error) {
     console.error("RM Home AI Error:", error);
-    // Ensure we return the expected structure even on failure to prevent UI crashes.
     return { 
       text: "Protocolos de comunicación externa limitados. RM Home está operando en modo local seguro.",
       sources: [] 
@@ -51,6 +44,7 @@ export async function getGlobalNexusStatus(homeData: any) {
 
 export async function getHomeInsights(data: any) {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const systemInstruction = `Actúa como el cerebro de RM Home. 
     Analiza la telemetría actual y la configuración personalizada del usuario.
     Sé carismático, sofisticado y breve (máximo 60 palabras).
@@ -58,7 +52,6 @@ export async function getHomeInsights(data: any) {
 
     const prompt = `Datos de telemetría: ${JSON.stringify(data)}.`;
 
-    // Using gemini-3-flash-preview for quick, efficient telemetry insights.
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -76,19 +69,26 @@ export async function getHomeInsights(data: any) {
 
 export async function getFinanceInsights(financeData: any) {
   try {
+    if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
+    
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const systemInstruction = `Actúa como el RM Home Financial Advisor.
-    Analiza datos financieros con precisión. Sé extremadamente conciso y directo (máximo 100 palabras).`;
+    Analiza datos financieros con precisión (gastos, ahorros, presupuestos). 
+    Sé extremadamente conciso y directo (máximo 80 palabras). 
+    Usa un tono profesional pero sofisticado.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Analiza estos datos financieros: ${JSON.stringify(financeData)}`,
+      contents: `Analiza este informe de ciclo financiero actual: ${JSON.stringify(financeData)}`,
       config: {
         systemInstruction: systemInstruction,
+        temperature: 0.7,
       },
     });
 
     return response.text;
   } catch (error) {
-    return "Protocolos financieros bajo mantenimiento.";
+    console.error("Finance AI Error:", error);
+    return "Analizando flujos de capital entrantes y salientes. Los informes de optimización estarán listos tras la próxima sincronización del ciclo.";
   }
 }
