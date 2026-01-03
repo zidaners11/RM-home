@@ -12,6 +12,39 @@ export interface WidgetConfig {
   color?: string;
 }
 
+// Interface for sensor data used in Dashboard and constants
+export interface SensorData {
+  id: string;
+  name: string;
+  value: string | number;
+  unit: string;
+  icon: string;
+  type: string;
+  trend?: 'up' | 'down' | 'stable';
+}
+
+// Interface for person location tracking used in MapView and constants
+export interface UserLocation {
+  entity_id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  lastSeen: string;
+  battery: number;
+  status: string;
+  history?: { lat: number; lng: number; time: string }[];
+}
+
+// Base weather data interface
+export interface WeatherData {
+  location: string;
+  temp: number;
+  condition: string;
+  forecast: string;
+  humidity: number;
+  wind: number;
+}
+
 export interface VehicleConfig {
   battery_entity: string;
   odometer_entity: string;
@@ -61,36 +94,6 @@ export interface FireflyConfig {
   sheets_csv_url?: string;
   main_account_id?: string;
   proxy_url?: string;
-}
-
-export interface SensorData {
-  id: string;
-  name: string;
-  value: any;
-  unit: string;
-  icon: string;
-  type: string;
-  trend?: 'up' | 'down' | 'stable';
-}
-
-export interface UserLocation {
-  entity_id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  lastSeen: string;
-  battery: number;
-  status: string;
-  history?: { lat: number; lng: number; time: string }[];
-}
-
-export interface WeatherData {
-  location: string;
-  temp: number;
-  condition: string;
-  forecast: string;
-  humidity: number;
-  wind: number;
 }
 
 export enum AppSection {

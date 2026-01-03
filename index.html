@@ -17,24 +17,16 @@
             background-color: #020617;
         }
         .glass {
-            background: rgba(10, 15, 30, 0.4);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            background: rgba(10, 15, 30, 0.45);
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
         }
         .glass-dark {
-            background: rgba(2, 6, 23, 0.9);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
+            background: rgba(2, 6, 23, 0.92);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
             border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        .nebula-bg {
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-            min-height: 100vh;
-            transition: background-image 1s ease-in-out;
         }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -42,18 +34,6 @@
         
         .leaflet-tile-pane {
             filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(110%);
-        }
-        @keyframes scanline {
-            0% { transform: translateY(-100%); }
-            100% { transform: translateY(100%); }
-        }
-        .scanline::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(to bottom, transparent, rgba(59, 130, 246, 0.05), transparent);
-            animation: scanline 8s linear infinite;
-            pointer-events: none;
         }
     </style>
 <script type="importmap">
@@ -71,7 +51,7 @@
 }
 </script>
 </head>
-<body class="nebula-bg scanline">
+<body class="bg-[#020617]">
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
 </body>
