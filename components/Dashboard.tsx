@@ -8,7 +8,7 @@ import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 const Dashboard: React.FC = () => {
   const [haStates, setHaStates] = useState<any[]>([]);
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig | null>(null);
-  const [aiReport, setAiReport] = useState<{ text: string, sources: any[], needsKey?: boolean }>({ text: 'Iniciando secuencia de enlace...', sources: [] });
+  const [aiReport, setAiReport] = useState<{ text: string, sources: any[] }>({ text: 'Estableciendo enlace neuronal...', sources: [] });
   const [historyData, setHistoryData] = useState<{[key: string]: any[]}>({});
   const [loadingAI, setLoadingAI] = useState(true);
 
@@ -19,25 +19,54 @@ const Dashboard: React.FC = () => {
         const config: HomeAssistantConfig = JSON.parse(savedHA);
         setHaConfig(config);
         refreshData(config);
-      } catch(e) { console.error(e); }
+      } catch(e) { console.error("Error cargando config en Dashboard:", e); }
     }
   };
 
+  // GENERADOR DINÁMICO DE WIDGETS
+  // Si dashboardWidgets está vacío, construimos una interfaz basada en el perfil
   const activeWidgets = useMemo(() => {
     if (!haConfig) return [];
-    if (haConfig.dashboardWidgets && haConfig.dashboardWidgets.length > 0) return haConfig.dashboardWidgets;
+    if (haConfig.dashboardWidgets && haConfig.dashboardWidgets.length > 0) {
+      return haConfig.dashboardWidgets;
+    }
 
-    return [
-      { id: 'solar', entity_id: haConfig.solar_production_entity || '', type: 'chart', title: 'Energía Estelar', colSpan: 1 },
-      { id: 'car', entity_id: haConfig.vehicle?.battery_entity || '', type: 'sensor', title: 'Módulo de Transporte', colSpan: 1 },
-      { id: 'alarm', entity_id: haConfig.alarm_entity || '', type: 'sensor', title: 'Escudo Perimetral', colSpan: 1 }
-    ].filter(w => w.entity_id);
+    const autoWidgets: WidgetConfig[] = [];
+    
+    // 1. Añadir Cámaras
+    if (haConfig.security_cameras && haConfig.security_cameras.length > 0) {
+      haConfig.security_cameras.forEach((cam, idx) => {
+        autoWidgets.push({ id: `auto_cam_${idx}`, entity_id: cam, type: 'sensor', title: 'CCTV Online', colSpan: 1 });
+      });
+    }
+
+    // 2. Añadir Energía Solar (Tu sensor Shelly)
+    if (haConfig.solar_production_entity) {
+      autoWidgets.push({ id: 'auto_solar', entity_id: haConfig.solar_production_entity, type: 'chart', title: 'Producción Solar', colSpan: 1 });
+    }
+
+    // 3. Añadir Personas (Radar)
+    if (haConfig.tracked_people && haConfig.tracked_people.length > 0) {
+      haConfig.tracked_people.forEach((p, idx) => {
+        autoWidgets.push({ id: `auto_p_${idx}`, entity_id: p, type: 'sensor', title: 'Localización', colSpan: 1 });
+      });
+    }
+
+    // 4. Añadir Coche (Si hay batería)
+    if (haConfig.vehicle?.battery_entity) {
+       autoWidgets.push({ id: 'auto_car', entity_id: haConfig.vehicle.battery_entity, type: 'sensor', title: 'Estado Vehículo', colSpan: 1 });
+    }
+
+    return autoWidgets;
   }, [haConfig]);
 
   useEffect(() => {
     loadConfig();
     window.addEventListener('nexus_config_updated', loadConfig);
-    const interval = setInterval(() => { if (haConfig) refreshData(haConfig); }, 30000);
+    const interval = setInterval(() => {
+      if (haConfig) refreshData(haConfig);
+    }, 15000);
+
     return () => {
       window.removeEventListener('nexus_config_updated', loadConfig);
       clearInterval(interval);
@@ -48,6 +77,7 @@ const Dashboard: React.FC = () => {
     const states = await fetchHAStates(config.url, config.token);
     if (states) {
       setHaStates(states);
+      
       activeWidgets.forEach(async (w) => {
         if (w.type === 'chart') {
           const h = await fetchHAHistory(config.url, config.token, w.entity_id, 24);
@@ -58,7 +88,7 @@ const Dashboard: React.FC = () => {
       if (loadingAI) {
         const report = await getGlobalNexusStatus({
           solar: states.find((s: any) => s.entity_id === config.solar_production_entity)?.state || 0,
-          temp: states.find((s: any) => s.entity_id?.includes('temperature'))?.state || 'N/A'
+          user: localStorage.getItem('nexus_user')
         });
         setAiReport(report);
         setLoadingAI(false);
@@ -66,31 +96,50 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleOpenKeySelector = async () => {
-    if ((window as any).aistudio) {
-        await (window as any).aistudio.openSelectKey();
-        window.location.reload();
-    } else {
-        alert("El selector de claves oficial solo está disponible en el entorno de producción. Por favor, introduce tu clave en Ajustes.");
-    }
+  const handleAction = async (entityId: string, domain: string, service: string) => {
+    if (!haConfig) return;
+    await callHAService(haConfig.url, haConfig.token, domain, service, { entity_id: entityId });
+    setTimeout(() => refreshData(haConfig), 500);
   };
 
   const renderWidget = (widget: WidgetConfig) => {
     const state = haStates.find(s => s.entity_id === widget.entity_id);
     const val = state?.state || '---';
-    const friendlyName = widget.title || state?.attributes?.friendly_name || 'Nodo Desconectado';
+    const friendlyName = widget.title || state?.attributes?.friendly_name || widget.entity_id;
     const unit = state?.attributes?.unit_of_measurement || '';
 
+    if (widget.type === 'chart') {
+      const chartPoints = historyData[widget.entity_id] || [];
+      return (
+        <div key={widget.id} className="glass p-8 rounded-[40px] border border-white/5 flex flex-col justify-between h-[200px] shadow-lg group relative overflow-hidden">
+           <div className="absolute inset-0 z-0 opacity-40">
+              <ResponsiveContainer width="100%" height="100%">
+                 <AreaChart data={chartPoints.map(p => ({ v: parseFloat(p.state) }))}>
+                    <Area type="monotone" dataKey="v" stroke="#3b82f6" fill="#3b82f6" strokeWidth={3} fillOpacity={0.1} />
+                 </AreaChart>
+              </ResponsiveContainer>
+           </div>
+           <div className="relative z-10 flex flex-col h-full justify-between">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 truncate">{friendlyName}</p>
+              <div>
+                 <h4 className="text-4xl font-black text-white italic tracking-tighter">{val}<span className="text-[10px] ml-1 text-white/20 uppercase font-black not-italic">{unit}</span></h4>
+              </div>
+           </div>
+        </div>
+      );
+    }
+
     return (
-      <div key={widget.id} className="glass p-8 rounded-[40px] border border-white/10 flex flex-col justify-between h-[220px] shadow-2xl group hover:border-purple-500/50 transition-all duration-500">
-         <div className="flex justify-between items-start">
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 group-hover:text-purple-400 transition-colors">{friendlyName}</p>
-            <div className="w-2 h-2 rounded-full bg-purple-500/20 group-hover:bg-purple-500 shadow-none group-hover:shadow-[0_0_10px_#a855f7] transition-all" />
-         </div>
+      <div key={widget.id} className="glass p-8 rounded-[40px] border border-white/5 flex flex-col justify-between h-[200px] shadow-lg group hover:bg-white/[0.02] transition-all">
+         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 truncate group-hover:text-blue-400 transition-colors">{friendlyName}</p>
          <div>
-            <h4 className="text-4xl font-black text-white italic tracking-tighter nebula-text-glow">
-                {val}<span className="text-[10px] ml-1 text-white/20 uppercase font-black not-italic">{unit}</span>
+            <h4 className="text-4xl font-black text-white italic tracking-tighter">
+                {val}
+                <span className="text-xs ml-2 text-white/20 uppercase font-black not-italic">{unit}</span>
             </h4>
+            {state?.attributes?.entity_picture && (
+                <div className="mt-2 text-[8px] text-blue-400 font-black uppercase tracking-widest">Multimedia Link Active</div>
+            )}
          </div>
       </div>
     );
@@ -98,30 +147,23 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-10 h-full pb-24">
-      {/* HEADER AI CON ESTILO NEBULA */}
-      <div className="glass rounded-[50px] p-10 border border-purple-500/20 relative overflow-hidden shadow-2xl nebula-border-glow">
-         <div className="absolute top-0 right-0 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px] ai-active-glow" />
-         <div className="flex flex-col md:flex-row gap-10 relative z-10 items-center">
-            <div className="w-24 h-24 bg-purple-600 rounded-[35px] flex items-center justify-center shrink-0 shadow-[0_0_40px_rgba(168,85,247,0.4)] border border-purple-400/30">
-               <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      {/* HEADER AI ADAPTADO A TU ESTILO */}
+      <div className="glass rounded-[60px] p-12 border border-blue-500/20 relative overflow-hidden shadow-2xl shrink-0">
+         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[150px]" />
+         <div className="flex flex-col md:flex-row gap-12 relative z-10 items-center">
+            <div className="w-28 h-28 bg-blue-600 rounded-[40px] flex items-center justify-center shrink-0 shadow-[0_0_60px_rgba(59,130,246,0.5)] border border-blue-400/30">
+               <svg className="w-14 h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             </div>
-            <div className="flex-1 text-center md:text-left space-y-3">
-               <h2 className="text-[12px] font-black uppercase tracking-[0.5em] text-purple-400">Nexus Strategic Core</h2>
-               <div className={`text-lg leading-relaxed text-white/90 font-medium ${loadingAI ? 'animate-pulse' : ''}`}>
+            <div className="flex-1 text-center md:text-left space-y-4">
+               <h2 className="text-[14px] font-black uppercase tracking-[0.6em] text-blue-400">Nexus Strategic Core</h2>
+               <div className={`text-xl leading-relaxed text-white/90 font-medium ${loadingAI ? 'animate-pulse' : ''}`}>
                   {aiReport.text}
                </div>
-               
-               {aiReport.needsKey && (
-                  <button onClick={handleOpenKeySelector} className="mt-4 px-6 py-2 bg-purple-600 hover:bg-purple-500 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-600/30">
-                     Autorizar Protocolo IA
-                  </button>
-               )}
-
                {aiReport.sources && aiReport.sources.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-4 justify-center md:justify-start">
                     {aiReport.sources.map((source: any, idx: number) => (
-                        <a key={idx} href={source.web?.uri} target="_blank" rel="noopener noreferrer" className="text-[8px] bg-white/5 hover:bg-purple-500/20 border border-white/10 px-3 py-1.5 rounded-full text-purple-300 transition-all uppercase font-black tracking-widest">
-                          {source.web?.title || 'Fuente'}
+                        <a key={idx} href={source.web?.uri} target="_blank" rel="noopener noreferrer" className="text-[8px] bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-full text-blue-400 transition-all uppercase font-black tracking-widest">
+                          {source.web?.title || 'Referencia'}
                         </a>
                     ))}
                   </div>
@@ -130,11 +172,18 @@ const Dashboard: React.FC = () => {
          </div>
       </div>
 
-      {/* GRID DE WIDGETS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {activeWidgets
-          .map(w => ({ ...w, type: w.type as WidgetType }))
-          .map(renderWidget)}
+      {/* GRID DE WIDGETS DUAL (MANUAL + AUTO) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+         {activeWidgets.map(renderWidget)}
+         
+         {activeWidgets.length === 0 && !loadingAI && (
+            <div className="col-span-full py-20 text-center glass rounded-[48px] border border-dashed border-white/10">
+               <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+               </div>
+               <p className="text-[12px] font-black uppercase tracking-[0.5em] text-white/40">Sincronizando perfiles de Home Assistant...</p>
+            </div>
+         )}
       </div>
     </div>
   );
