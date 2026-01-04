@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { HomeAssistantConfig, FireflyConfig, WidgetConfig, WidgetType } from '../types';
-import { fetchHAStates, DEFAULT_HA_URL, DEFAULT_HA_TOKEN, saveConfigToHA } from '../homeAssistantService';
+import { fetchHAStates, DEFAULT_HA_URL, DEFAULT_HA_TOKEN, saveMasterConfig } from '../homeAssistantService';
 
 const SettingsView: React.FC = () => {
-  type TabType = 'dashboard' | 'energy' | 'vehicle' | 'security' | 'radar' | 'finance' | 'core' | 'appearance';
+  type TabType = 'dashboard' | 'security' | 'energy' | 'vehicle' | 'radar' | 'finance' | 'core' | 'appearance';
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   
   const INITIAL_HA_CONFIG: HomeAssistantConfig = {
@@ -79,37 +79,23 @@ const SettingsView: React.FC = () => {
     } catch (e) { }
   };
 
-  /**
-   * GUARDADO CON PREVALENCIA EN LA NUBE
-   */
   const handleSave = async () => {
     setStatus('saving');
     const username = localStorage.getItem('nexus_user') || 'guest';
     
     try {
-      // 1. PRIMERO: Empujar a la Nube (Home Assistant)
-      // Esto es lo que garantiza que cualquier otro dispositivo vea los cambios
-      console.log(`[NEXUS SETTINGS] Sincronizando perfil de ${username} con la nube...`);
-      const cloudSuccess = await saveConfigToHA(username, haConfig, haConfig.url, haConfig.token);
+      // PERSISTENCIA TOTAL: Inyectamos el JSON en Home Assistant como un sensor
+      const syncSuccess = await saveMasterConfig(username, haConfig, haConfig.url, haConfig.token);
       
-      if (!cloudSuccess) {
-        throw new Error("CLOUD_SYNC_FAILED");
+      if (syncSuccess) {
+        localStorage.setItem('nexus_ha_config', JSON.stringify(haConfig));
+        localStorage.setItem('nexus_firefly_config', JSON.stringify(fireflyConfig));
+        setStatus('success');
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        throw new Error("SYNC_FAILED");
       }
-
-      // 2. SEGUNDO: Si la nube aceptó, guardamos localmente como caché rápida
-      localStorage.setItem('nexus_ha_config', JSON.stringify(haConfig));
-      localStorage.setItem('nexus_firefly_config', JSON.stringify(fireflyConfig));
-      
-      setStatus('success');
-      console.log("[NEXUS SETTINGS] Perfil sincronizado y guardado correctamente.");
-      
-      // Forzar recarga tras un breve delay para que todo el sistema use la nueva config
-      setTimeout(() => {
-        window.location.reload(); 
-      }, 1500);
-
     } catch (err) {
-      console.error("[NEXUS SETTINGS] Error en el guardado maestro:", err);
       setStatus('error');
       setTimeout(() => setStatus('idle'), 3000);
     }
@@ -246,7 +232,7 @@ const SettingsView: React.FC = () => {
 
       <div className="shrink-0 flex justify-center pt-6 border-t border-white/10">
         <button onClick={handleSave} className="w-full max-w-xl py-5 bg-blue-600 rounded-3xl font-black text-[11px] uppercase tracking-[0.3em] shadow-2xl hover:scale-[1.02] text-white transition-all">
-          {status === 'saving' ? 'SINCRONIZANDO NUBE...' : status === 'success' ? 'PERFIL ACTUALIZADO ✓' : status === 'error' ? 'FALLO DE ENLACE' : 'GUARDAR CONFIGURACIÓN MAESTRA'}
+          {status === 'saving' ? 'SINCRONIZANDO NÚCLEO...' : status === 'success' ? 'PERFIL ACTUALIZADO ✓' : status === 'error' ? 'FALLO DE ENLACE' : 'GUARDAR CONFIGURACIÓN MAESTRA'}
         </button>
       </div>
     </div>

@@ -9,10 +9,11 @@ services:
       - "8080:80"
     restart: unless-stopped
     volumes:
-      # CONFIGURACIÓN AUTOMÁTICA: 
-      # Crea un archivo 'config.json' en la misma carpeta que este docker-compose
-      # y se inyectará automáticamente en el Dashboard sin errores de red.
-      - ./config.json:/usr/share/nginx/html/config.json:ro
+      # MONTA UNA CARPETA DE CONFIGS:
+      # En tu Ubuntu, crea una carpeta llamada 'nexus_configs' al lado del docker-compose.
+      # Dentro puedes poner: config_juanmi.json, config_noemi.json y config.json.
+      # La aplicación detectará automáticamente el archivo que corresponda al usuario logueado.
+      - ./nexus_configs:/usr/share/nginx/html/:ro
     environment:
       - NODE_ENV=production
       - API_KEY=${GEMINI_API_KEY}

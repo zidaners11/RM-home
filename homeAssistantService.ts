@@ -1,28 +1,15 @@
 
 /**
- * Nexus Home Assistant Bridge - Cloud Sync Engine v9.0 (Docker-Ready)
+ * Nexus Home Assistant Bridge - Ultra Sync Engine v12.8 (Deep Debug & Aggressive Discovery)
  */
 
 export const DEFAULT_HA_URL = "https://3p30htdlzk9a3yu1yzb04956g3pkp1ky.ui.nabu.casa";
 export const DEFAULT_HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJmNzQ5MGY5ZTUwNTA0NTAwYTYwNzQzMTcyZDBjZDI0NCIsImlhdCI6MTc2NzM3NDA1NywiZXhwIjoyMDgyNzM0MDU3fQ.yoa9yRBkizc1PjFzR7imtu7njshEKWKRN3S0dWkRON0";
 
-/**
- * NUEVO: Intenta leer la configuración directamente del sistema de archivos local (montado vía Docker)
- * Esto evita problemas de CORS y latencia.
- */
-export async function fetchLocalConfig() {
-  try {
-    const response = await fetch('/config.json', { cache: 'no-store' });
-    if (response.ok) {
-      const config = await response.json();
-      console.log("[NEXUS_SYSTEM] Configuración local cargada desde volumen Docker.");
-      return config;
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
+const getNormalizedSensorId = (username: string) => {
+  const slug = username.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^\w\-]+/g, '');
+  return `sensor.nexus_config_${slug}`;
+};
 
 const getCleanBaseUrl = (url: string) => {
   let clean = (url || DEFAULT_HA_URL).trim().replace(/\/+$/, '');
@@ -30,17 +17,119 @@ const getCleanBaseUrl = (url: string) => {
   return clean;
 };
 
-export async function fetchSingleEntity(entityId: string, url: string = DEFAULT_HA_URL, token: string = DEFAULT_HA_TOKEN) {
+/**
+ * BUSCADOR MAESTRO DE CONFIGURACIÓN CON ESCANEO AGRESIVO
+ */
+export async function fetchMasterConfig(username: string, url: string, token: string) {
+  const targetId = getNormalizedSensorId(username);
+  const cleanUrl = getCleanBaseUrl(url);
+  const authHeader = { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" };
+  const userLower = username.toLowerCase().trim();
+
+  console.log(`[NEXUS DEBUG] Iniciando búsqueda para: ${userLower}`);
+
   try {
-    const cleanUrl = getCleanBaseUrl(url);
-    const response = await fetch(`${cleanUrl}/api/states/${entityId}`, {
+    // 1. INTENTO DIRECTO
+    const response = await fetch(`${cleanUrl}/api/states/${targetId}`, {
       method: 'GET',
-      headers: { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" },
+      headers: authHeader,
       mode: 'cors'
     });
-    if (!response.ok) return null;
-    return await response.json();
-  } catch (e) { return null; }
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.attributes?.config_data) {
+        console.log(`[NEXUS CLOUD] Enlace directo OK: ${targetId}`);
+        return typeof data.attributes.config_data === 'string' ? JSON.parse(data.attributes.config_data) : data.attributes.config_data;
+      }
+    }
+
+    // 2. ESCANEO PROFUNDO (Si el directo falla con 404)
+    console.warn(`[NEXUS CLOUD] ${targetId} no responde. Escaneando TODAS las entidades de Home Assistant...`);
+    const globalResp = await fetch(`${cleanUrl}/api/states`, {
+      method: 'GET',
+      headers: authHeader,
+      mode: 'cors'
+    });
+
+    if (globalResp.ok) {
+      const allStates = await globalResp.json();
+      console.log(`[NEXUS DEBUG] Recibidas ${allStates.length} entidades de HA.`);
+
+      // Búsqueda multivariable:
+      // - Coincidencia en entity_id que contenga el usuario y "config" o "nexus"
+      // - Coincidencia en friendly_name
+      // - Coincidencia en el atributo "user"
+      const foundEntity = allStates.find((s: any) => {
+        const eid = s.entity_id.toLowerCase();
+        const fname = (s.attributes?.friendly_name || '').toLowerCase();
+        const attrUser = (s.attributes?.user || '').toLowerCase();
+
+        const matchId = eid.includes(userLower) && (eid.includes('config') || eid.includes('nexus'));
+        const matchName = fname.includes('nexus') && fname.includes(userLower);
+        const matchAttr = attrUser === userLower;
+
+        return matchId || matchName || matchAttr;
+      });
+
+      if (foundEntity) {
+        console.log(`[NEXUS CLOUD] ¡Discovery Exitoso! Encontrado en: ${foundEntity.entity_id}`);
+        const config = foundEntity.attributes?.config_data;
+        if (config) {
+            return typeof config === 'string' ? JSON.parse(config) : config;
+        }
+      } else {
+        // Log de ayuda: mostrar entidades que contengan al menos el nombre de usuario
+        const closeMatches = allStates
+            .filter((s: any) => s.entity_id.toLowerCase().includes(userLower))
+            .map((s: any) => s.entity_id);
+        if (closeMatches.length > 0) {
+            console.log(`[NEXUS DEBUG] No hay sensor de config, pero encontré estas entidades de ${userLower}:`, closeMatches);
+        }
+      }
+    } else {
+        console.error(`[NEXUS DEBUG] Error al obtener listado global: ${globalResp.status}`);
+    }
+  } catch (e) {
+    console.error("[NEXUS CLOUD] Error crítico de red:", e);
+  }
+
+  return null;
+}
+
+/**
+ * GUARDADO MAESTRO
+ */
+export async function saveMasterConfig(username: string, config: any, url: string, token: string) {
+  const sensorId = getNormalizedSensorId(username);
+  const cleanUrl = getCleanBaseUrl(url);
+
+  try {
+    const payload = {
+      state: 'OK',
+      attributes: {
+        friendly_name: `Nexus Config - ${username}`,
+        icon: 'mdi:nexus-hub',
+        last_sync: new Date().toISOString(),
+        user: username,
+        config_data: config 
+      }
+    };
+
+    const response = await fetch(`${cleanUrl}/api/states/${sensorId}`, {
+      method: 'POST',
+      headers: { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" },
+      mode: 'cors',
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+        console.log(`[NEXUS CLOUD] Guardado forzado exitoso en ${sensorId}`);
+    }
+    return response.ok;
+  } catch (e) {
+    return false;
+  }
 }
 
 export async function fetchHAStates(url: string = DEFAULT_HA_URL, token: string = DEFAULT_HA_TOKEN) {
@@ -52,80 +141,19 @@ export async function fetchHAStates(url: string = DEFAULT_HA_URL, token: string 
       mode: 'cors'
     });
     return response.ok ? await response.json() : null;
-  } catch (error: any) {
-    return null;
-  }
+  } catch (error: any) { return null; }
 }
 
-export async function getCloudSyncConfig(username: string, url: string = DEFAULT_HA_URL, token: string = DEFAULT_HA_TOKEN) {
-  const userUpper = username.toUpperCase();
-  const userLower = username.toLowerCase();
-
-  // Priorizamos Stage 1: Pruebas Directas por ID
-  const probeIds = [
-    `persistent_notification.nexus_sync_${userLower}`,
-    `persistent_notification.nexus_config_${userLower}`
-  ];
-
-  for (const id of probeIds) {
-    const entity = await fetchSingleEntity(id, url, token);
-    if (entity && entity.attributes?.message) {
-      try {
-        const msg = entity.attributes.message;
-        return JSON.parse(msg.substring(msg.indexOf('{'), msg.lastIndexOf('}') + 1));
-      } catch (e) {}
-    }
-  }
-
-  // Fallback a Stage 2: Escaneo Global (Buscando cualquier notificación que contenga el JSON)
-  const states = await fetchHAStates(url, token);
-  if (!states || !Array.isArray(states)) return null;
-
-  for (const entity of states) {
-    const msg = (entity.attributes?.message || "").toString();
-    if (msg.includes('"url"') && msg.toUpperCase().includes(userUpper)) {
-       try {
-          return JSON.parse(msg.substring(msg.indexOf('{'), msg.lastIndexOf('}') + 1));
-       } catch (e) {}
-    }
-  }
-  return null;
-}
-
-// Updated callHAService to return boolean success status
 export async function callHAService(url: string, token: string, domain: string, service: string, serviceData: any) {
   try {
     const cleanUrl = getCleanBaseUrl(url);
-    const response = await fetch(`${cleanUrl}/api/services/${domain}/${service}`, {
+    await fetch(`${cleanUrl}/api/services/${domain}/${service}`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" },
       mode: 'cors',
       body: JSON.stringify(serviceData),
     });
-    return response.ok;
-  } catch (e) {
-    return false;
-  }
-}
-
-// Added saveConfigToHA to fix missing export in SettingsView.tsx
-/**
- * Persists the user configuration into Home Assistant as a persistent notification.
- * This ensures the configuration is available across devices.
- */
-export async function saveConfigToHA(username: string, config: any, url: string, token: string) {
-  try {
-    const userLower = username.toLowerCase();
-    const serviceData = {
-      message: JSON.stringify(config),
-      notification_id: `nexus_sync_${userLower}`,
-      title: `Nexus Sync Profile for ${username}`
-    };
-    return await callHAService(url, token, 'persistent_notification', 'create', serviceData);
-  } catch (e) {
-    console.error("Failed to save config to HA:", e);
-    return false;
-  }
+  } catch (e) {}
 }
 
 export async function fetchHAHistory(url: string, token: string, entityId: string, hours: number = 24) {
