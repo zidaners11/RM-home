@@ -4,13 +4,43 @@ import { fetchHAStates, callHAService } from '../homeAssistantService';
 import { HomeAssistantConfig } from '../types';
 
 const formatNexusNum = (val: any) => {
+  if (typeof val === 'string' && (val.includes('-') || val.includes(':') || val.length > 12)) {
+    return val; // Es probable que sea una fecha o un ID largo, no formatear como número
+  }
   const n = parseFloat(val);
-  if (isNaN(n)) return val;
-  // Formato español: punto para miles, coma para decimales
+  if (isNaN(n) || !isFinite(n)) return val;
+  
+  // Evitar formatear años o IDs numéricos cortos que no tienen sentido con decimales
+  if (Number.isInteger(n) && (n > 1900 && n < 2100)) return val;
+
   return new Intl.NumberFormat('es-ES', { 
     minimumFractionDigits: 2, 
     maximumFractionDigits: 2 
   }).format(n);
+};
+
+const formatAlarmState = (state: string) => {
+  const s = (state || '').toUpperCase();
+  if (s === 'ALARM_NOT_ACTIVATED' || s === 'OFF' || s === 'DISARMED') return 'DESACTIVADA';
+  if (s === 'ALARM_ACTIVATED' || s === 'ON' || s === 'ARMED') return 'ACTIVADA';
+  return s;
+};
+
+const formatSyncDate = (dateStr: string) => {
+  if (!dateStr || dateStr === '---') return '---';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (e) {
+    return dateStr;
+  }
 };
 
 const VehicleView: React.FC = () => {
@@ -66,6 +96,16 @@ const VehicleView: React.FC = () => {
     return s?.state || fallback;
   };
 
+  const getFriendlyName = (entityId: string) => {
+    const s = getEntityData(entityId);
+    return s?.attributes?.friendly_name || entityId.split('.')[1].replace(/_/g, ' ');
+  };
+
+  const getUnit = (entityId: string) => {
+    const s = getEntityData(entityId);
+    return s?.attributes?.unit_of_measurement || '';
+  };
+
   if (loading) {
     return (
       <div className="h-[60vh] flex flex-col items-center justify-center">
@@ -87,9 +127,7 @@ const VehicleView: React.FC = () => {
   const status = getVal(car.status_entity, 'Parked');
   const isCharging = status.toLowerCase().includes('charge');
 
-  // Circunferencia matemática exacta para r=45 -> 2 * PI * 45 ≈ 282.743
   const circumference = 2 * Math.PI * 45;
-  // Offset inverso: al 100% el offset debe ser 0 para cerrar el círculo.
   const offset = circumference - (battery / 100) * circumference;
 
   const primaryKPIs = [
@@ -101,9 +139,16 @@ const VehicleView: React.FC = () => {
     { label: 'Consumo', val: getVal(car.avg_consumption_entity), unit: 'kWh', color: 'text-blue-400' }
   ];
 
-  const extraTelemetry = [
-    { label: 'Ventanas', val: getVal(car.windows_entity), unit: '' },
-    { label: 'Último Sync', val: getVal(car.last_update_entity), unit: '' }
+  // Sensores Dinámicos + Alarma + Sync
+  const secondaryKPIs = [
+    { label: 'Alarma', val: formatAlarmState(getVal(car.windows_entity)), unit: '', color: getVal(car.windows_entity).includes('NOT') ? 'text-white/60' : 'text-red-400' },
+    { label: 'Último Sync', val: formatSyncDate(getVal(car.last_update_entity)), unit: '', color: 'text-blue-400/80' },
+    ...(car.extra_entities || []).map(id => ({
+      label: getFriendlyName(id),
+      val: getVal(id),
+      unit: getUnit(id),
+      color: 'text-white'
+    }))
   ];
 
   return (
@@ -155,7 +200,7 @@ const VehicleView: React.FC = () => {
          <div className="absolute bottom-12 left-12 right-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
             {primaryKPIs.map((k, i) => (
                <div key={i}>
-                  <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">{k.label}</p>
+                  <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] line-clamp-1">{k.label}</p>
                   <p className={`text-2xl font-black tracking-tight ${k.color}`}>{formatNexusNum(k.val)}<span className="text-[10px] ml-1 opacity-40 uppercase font-black">{k.unit}</span></p>
                </div>
             ))}
@@ -163,11 +208,11 @@ const VehicleView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-         {extraTelemetry.map((k, i) => (
-            <div key={i} className="glass p-6 rounded-[35px] border border-white/5 hover:bg-white/[0.08] transition-all flex flex-col justify-center min-h-[140px]">
-               <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-2 line-clamp-1">{k.label}</p>
-               <p className="text-xl font-black text-white">
-                  {formatNexusNum(k.val)}
+         {secondaryKPIs.map((k, i) => (
+            <div key={i} className="glass p-6 rounded-[35px] border border-white/5 hover:bg-white/[0.08] transition-all flex flex-col justify-center min-h-[140px] shadow-lg">
+               <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-2 line-clamp-2 leading-tight">{k.label}</p>
+               <p className={`text-lg font-black ${k.color || 'text-white'}`}>
+                  {k.label === 'Último Sync' ? k.val : formatNexusNum(k.val)}
                   <span className="text-[9px] ml-1 opacity-20 uppercase font-black">{k.unit}</span>
                </p>
             </div>

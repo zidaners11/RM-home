@@ -95,7 +95,7 @@ export interface HomeAssistantConfig {
   tracked_people: string[];
   alarm_entity?: string;
   vehicle: VehicleConfig;
-  finance: FireflyConfig; // Añadido para persistencia en nube
+  finance: FireflyConfig; 
   custom_bg_url?: string; 
   weather_nodes: {
     torrejon: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
@@ -109,7 +109,6 @@ export enum AppSection {
   ENERGY = 'energy',
   VEHICLE = 'vehicle',
   FINANCE = 'finance',
-  FIREFLY = 'firefly',
   SECURITY = 'security',
   WEATHER = 'weather',
   MAPS = 'maps',

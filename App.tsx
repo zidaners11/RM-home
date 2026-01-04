@@ -7,7 +7,6 @@ import Login from './components/Login';
 import EnergyView from './components/EnergyView';
 import VehicleView from './components/VehicleView';
 import FinanceView from './components/FinanceView';
-import FireflyView from './components/FireflyView';
 import SecurityView from './components/SecurityView';
 import WeatherView from './components/WeatherView';
 import MapView from './components/MapView';
@@ -86,7 +85,7 @@ const App: React.FC = () => {
     const formalName = username.trim().toLowerCase() === 'juanmi' ? 'Juanmi' : 
                        username.trim().toLowerCase() === 'noemi' ? 'Noemi' : username;
     
-    localStorage.setItem('nexus_session_active', 'true');
+    localStorage.setItem('nexus_ session_active', 'true');
     localStorage.setItem('nexus_user', formalName);
     setUser(formalName);
     startupSequence(formalName);
@@ -161,7 +160,6 @@ const App: React.FC = () => {
            {activeSection === AppSection.ENERGY && <EnergyView key="energy" />}
            {activeSection === AppSection.VEHICLE && <VehicleView key="vehicle" />}
            {activeSection === AppSection.FINANCE && <FinanceView key="finance" />}
-           {activeSection === AppSection.FIREFLY && <FireflyView key="firefly" />}
            {activeSection === AppSection.SECURITY && <SecurityView key="security" />}
            {activeSection === AppSection.WEATHER && <WeatherView key="weather" />}
            {activeSection === AppSection.MAPS && <MapView key="maps" />}

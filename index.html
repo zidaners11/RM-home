@@ -5,6 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexus Home Hub</title>
+    <!-- Configuración dinámica para Docker -->
+    <script>
+        // Inicializar objeto de configuración por si el archivo /config.js no existe
+        window.NEXUS_CONFIG = window.NEXUS_CONFIG || {};
+    </script>
+    <script src="/config.js" onerror="console.log('NEXUS: config.js no detectado, usando entorno local o .env')"></script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -15,7 +22,6 @@
             padding: 0;
             overflow: hidden;
             background-color: #020617;
-            /* Fondo solicitado: Integración perfecta desde el HTML */
             background-image: url('https://i.redd.it/6qq8lk9qjqp21.jpg');
             background-size: cover;
             background-position: center;
@@ -25,11 +31,10 @@
         #root {
             height: 100vh;
             width: 100vw;
-            /* Overlay dinámico para maximizar estética celestial */
             background: radial-gradient(circle at 50% 50%, rgba(2, 6, 23, 0.2) 0%, rgba(2, 6, 23, 0.7) 100%);
         }
         .glass {
-            background: rgba(15, 23, 42, 0.15); /* Más transparente para que se vea el fondo */
+            background: rgba(15, 23, 42, 0.15);
             backdrop-filter: blur(25px) saturate(160%);
             -webkit-backdrop-filter: blur(25px) saturate(160%);
             border: 1px solid rgba(255, 255, 255, 0.05);
@@ -54,7 +59,6 @@
             letter-spacing: 0.15em;
         }
 
-        /* Animaciones cinemáticas */
         @keyframes nexusPulse {
             0% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.1); }
             50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.2); }
