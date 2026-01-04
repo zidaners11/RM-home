@@ -71,7 +71,7 @@ const EnergyView: React.FC = () => {
               solar: parseFloat(s.state) || 0,
               grid: parseFloat(g.state) || 0
             };
-          }).filter((_, i) => i % 4 === 0);
+          }).filter((_: unknown, i: number) => i % 4 === 0);
           setHistoryData(combined);
         } else {
           // Si el historial falla, usamos simulación para mantener estética
