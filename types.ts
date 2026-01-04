@@ -12,18 +12,6 @@ export interface WidgetConfig {
   color?: string;
 }
 
-// Interface for sensor data used in Dashboard and constants
-export interface SensorData {
-  id: string;
-  name: string;
-  value: string | number;
-  unit: string;
-  icon: string;
-  type: string;
-  trend?: 'up' | 'down' | 'stable';
-}
-
-// Interface for person location tracking used in MapView and constants
 export interface UserLocation {
   entity_id: string;
   name: string;
@@ -35,7 +23,18 @@ export interface UserLocation {
   history?: { lat: number; lng: number; time: string }[];
 }
 
-// Base weather data interface
+// Added SensorData interface to resolve import error in constants.ts
+export interface SensorData {
+  id: string;
+  name: string;
+  value: string | number;
+  unit: string;
+  icon: string;
+  type: string;
+  trend?: 'up' | 'down' | 'stable';
+}
+
+// Added WeatherData interface to resolve import error in constants.ts and property errors in WeatherView.tsx
 export interface WeatherData {
   location: string;
   temp: number;
@@ -47,6 +46,7 @@ export interface WeatherData {
 
 export interface VehicleConfig {
   battery_entity: string;
+  range_entity: string;
   odometer_entity: string;
   fuel_entity: string;
   service_km_entity: string;
@@ -54,10 +54,19 @@ export interface VehicleConfig {
   electric_use_entity: string;
   avg_consumption_entity: string;
   time_to_charge_entity: string;
+  charge_limit_entity: string; // Nuevo
+  plug_status_entity: string; // Nuevo
   km_today_entity: string;
   charging_speed_entity: string;
   status_entity: string;
-  refresh_button_entity: string; 
+  lock_entity: string;
+  climate_entity: string;
+  tire_pressure_fl_entity: string; // Nuevo: Delantera Izq
+  tire_pressure_fr_entity: string; // Nuevo: Delantera Der
+  tire_pressure_rl_entity: string; // Nuevo: Trasera Izq
+  tire_pressure_rr_entity: string; // Nuevo: Trasera Der
+  windows_entity: string;
+  last_update_entity: string; // Nuevo
   image_url: string; 
 }
 
@@ -72,7 +81,6 @@ export interface HomeAssistantConfig {
   grid_export_entity?: string; 
   energy_cost_entity?: string;
   car_battery_entity?: string;
-  invoice_entity?: string; 
   security_cameras: string[];
   security_sensors: string[];
   temperature_sensors: string[];
@@ -92,6 +100,7 @@ export interface FireflyConfig {
   token: string;
   use_sheets_mirror?: boolean;
   sheets_csv_url?: string;
+  // Added missing properties to resolve errors in FinanceView.tsx
   main_account_id?: string;
   proxy_url?: string;
 }
