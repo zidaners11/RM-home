@@ -8,7 +8,7 @@ export interface WidgetConfig {
   title: string;
   icon?: string;
   unit?: string;
-  colSpan: 1 | 2 | 3;
+  colSpan: 1 | 2;
   color?: string;
 }
 
@@ -23,6 +23,7 @@ export interface UserLocation {
   history?: { lat: number; lng: number; time: string }[];
 }
 
+// Added SensorData interface to fix import errors in constants.ts
 export interface SensorData {
   id: string;
   name: string;
@@ -33,6 +34,7 @@ export interface SensorData {
   trend?: 'up' | 'down' | 'stable';
 }
 
+// Added WeatherData interface to fix inheritance errors in constants.ts and WeatherView.tsx
 export interface WeatherData {
   location: string;
   temp: number;
@@ -66,20 +68,21 @@ export interface VehicleConfig {
   windows_entity: string;
   last_update_entity: string;
   image_url: string;
-  extra_entities?: string[]; // Para permitir más de 11+ KPIs
+  extra_entities?: string[];
 }
 
 export interface HomeAssistantConfig {
   url: string;
   token: string;
-  pinnedEntities: string[];
+  pinnedEntities: string[]; // Deprecado a favor de dashboardWidgets
+  dashboardWidgets: WidgetConfig[];
   solar_production_entity?: string;
   solar_daily_entity?: string;
   solar_monthly_entity?: string;
   grid_consumption_entity?: string;
   grid_export_entity?: string; 
   energy_cost_entity?: string;
-  energy_extra_entities?: string[]; // Para permitir más de 11+ KPIs
+  energy_extra_entities?: string[];
   car_battery_entity?: string;
   security_cameras: string[];
   security_sensors: string[];

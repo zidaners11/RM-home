@@ -1,16 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
-import { HomeAssistantConfig, FireflyConfig } from '../types';
+import { HomeAssistantConfig, FireflyConfig, WidgetConfig, WidgetType } from '../types';
 import { fetchHAStates, DEFAULT_HA_URL, DEFAULT_HA_TOKEN } from '../homeAssistantService';
 
 const SettingsView: React.FC = () => {
-  type TabType = 'core' | 'energy' | 'vehicle' | 'finance' | 'radar' | 'appearance';
-  const [activeTab, setActiveTab] = useState<TabType>('core');
+  type TabType = 'dashboard' | 'energy' | 'vehicle' | 'security' | 'radar' | 'finance' | 'core' | 'appearance';
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   
   const INITIAL_HA_CONFIG: HomeAssistantConfig = {
     url: DEFAULT_HA_URL, 
     token: DEFAULT_HA_TOKEN, 
     pinnedEntities: [], 
+    dashboardWidgets: [],
     security_cameras: [], 
     security_sensors: [], 
     temperature_sensors: [], 
@@ -48,46 +49,34 @@ const SettingsView: React.FC = () => {
   useEffect(() => {
     const savedHA = localStorage.getItem('nexus_ha_config');
     const savedFF = localStorage.getItem('nexus_firefly_config');
-    
     if (savedHA) {
       try {
         const parsed = JSON.parse(savedHA);
         setHaConfig({
           ...INITIAL_HA_CONFIG,
           ...parsed,
-          pinnedEntities: parsed.pinnedEntities || [],
-          energy_extra_entities: parsed.energy_extra_entities || [],
-          vehicle: { 
-            ...INITIAL_HA_CONFIG.vehicle, 
-            ...(parsed.vehicle || {}),
-            extra_entities: parsed.vehicle?.extra_entities || []
-          }
+          vehicle: { ...INITIAL_HA_CONFIG.vehicle, ...(parsed.vehicle || {}) },
+          weather_nodes: { ...INITIAL_HA_CONFIG.weather_nodes, ...(parsed.weather_nodes || {}) }
         });
         loadHAEntities(parsed.url || DEFAULT_HA_URL, parsed.token || DEFAULT_HA_TOKEN);
       } catch (e) { console.error("Restore failed", e); }
     } else {
       loadHAEntities(DEFAULT_HA_URL, DEFAULT_HA_TOKEN);
     }
-
-    if (savedFF) {
-      try {
-        setFireflyConfig(prev => ({ ...prev, ...JSON.parse(savedFF) }));
-      } catch (e) { }
-    }
+    if (savedFF) setFireflyConfig(JSON.parse(savedFF));
   }, []);
 
   const loadHAEntities = async (url: string, token: string) => {
     try {
       const states = await fetchHAStates(url, token);
       if (states) setHaStates(states);
-    } catch (e) { console.error("Entity fetch failed", e); }
+    } catch (e) { }
   };
 
   const handleSave = () => {
     setStatus('saving');
     localStorage.setItem('nexus_ha_config', JSON.stringify(haConfig));
     localStorage.setItem('nexus_firefly_config', JSON.stringify(fireflyConfig));
-    
     setTimeout(() => {
       setStatus('success');
       setTimeout(() => setStatus('idle'), 1500);
@@ -98,43 +87,34 @@ const SettingsView: React.FC = () => {
   const EntitySelector = ({ label, value, onChange, multi = false }: any) => {
     const [search, setSearch] = useState('');
     const [isOpen, setIsOpen] = useState(false);
-    
     const filtered = (haStates || []).filter(s => 
       s.entity_id.toLowerCase().includes(search.toLowerCase()) ||
       (s.attributes.friendly_name || '').toLowerCase().includes(search.toLowerCase())
-    ).slice(0, 100);
+    ).slice(0, 40);
 
     return (
-      <div className="space-y-2 relative">
-        <label className="text-[10px] font-black uppercase text-blue-400/60 ml-4 tracking-widest">{label}</label>
-        <div onClick={() => setIsOpen(!isOpen)} className="w-full glass bg-white/5 border border-white/10 rounded-3xl px-6 py-5 text-xs text-white cursor-pointer flex justify-between items-center hover:bg-white/10 transition-all shadow-lg">
-           <span className="truncate max-w-[85%] font-bold">
-              {multi ? `${(value || []).length} seleccionadas` : (value || 'No configurado')}
-           </span>
-           <svg className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180 text-blue-400' : 'text-white/20'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      <div className="space-y-1 relative">
+        <label className="text-[9px] font-black uppercase text-blue-400/60 ml-3 tracking-widest">{label}</label>
+        <div onClick={() => setIsOpen(!isOpen)} className="w-full glass bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-[11px] text-white cursor-pointer flex justify-between items-center hover:bg-white/10 transition-all">
+           <span className="truncate">{multi ? `${(value || []).length} seleccionadas` : (value || '---')}</span>
+           <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180 text-blue-400' : 'text-white/20'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
         {isOpen && (
-          <div className="absolute z-[200] w-full mt-3 glass-dark border border-white/20 rounded-[32px] p-6 shadow-2xl animate-in fade-in slide-in-from-top-4 backdrop-blur-3xl">
-            <div className="relative mb-4">
-               <input autoFocus placeholder="Buscar entidad..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/30" />
-            </div>
-            <div className="max-h-60 overflow-y-auto no-scrollbar space-y-1">
+          <div className="absolute z-[300] w-full mt-2 glass-dark border border-white/20 rounded-2xl p-4 shadow-2xl backdrop-blur-3xl">
+            <input autoFocus placeholder="Filtrar..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-2 text-[11px] text-white mb-3" />
+            <div className="max-h-48 overflow-y-auto no-scrollbar space-y-1">
               {filtered.map(s => {
                 const isSelected = multi ? (Array.isArray(value) && value.includes(s.entity_id)) : value === s.entity_id;
                 return (
                   <div key={s.entity_id} onClick={() => {
                     if(multi) {
                       const current = Array.isArray(value) ? value : [];
-                      const next = isSelected ? current.filter((x:any) => x !== s.entity_id) : [...current, s.entity_id];
-                      onChange(next);
+                      onChange(isSelected ? current.filter((x:any) => x !== s.entity_id) : [...current, s.entity_id]);
                     } else {
                       onChange(s.entity_id); setIsOpen(false);
                     }
-                  }} className={`px-5 py-3 rounded-2xl cursor-pointer text-[10px] flex justify-between items-center transition-all ${isSelected ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'hover:bg-white/5 text-white/40'}`}>
-                    <div className="flex flex-col">
-                       <span className="font-black uppercase">{s.attributes.friendly_name || s.entity_id}</span>
-                       <span className="opacity-30 text-[8px] font-mono">{s.entity_id}</span>
-                    </div>
+                  }} className={`px-4 py-2 rounded-xl cursor-pointer text-[10px] ${isSelected ? 'bg-blue-600 text-white' : 'hover:bg-white/5 text-white/40'}`}>
+                    {s.attributes.friendly_name || s.entity_id}
                   </div>
                 );
               })}
@@ -146,133 +126,96 @@ const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col gap-6 pb-24 overflow-hidden animate-in fade-in duration-700">
-      <div className="flex gap-4 border-b border-white/10 pb-6 overflow-x-auto no-scrollbar shrink-0">
-        {[
-          {id: 'core', label: 'HA Core'}, 
-          {id: 'energy', label: 'Energía'},
-          {id: 'vehicle', label: 'Coche'}, 
-          {id: 'finance', label: 'Finanzas'},
-          {id: 'radar', label: 'Radar'},
-          {id: 'appearance', label: 'Fondo'}
-        ].map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id as TabType)} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] transition-all shrink-0 ${activeTab === t.id ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/40' : 'bg-white/5 text-white/20 hover:bg-white/10'}`}>
-            {t.label}
+    <div className="h-full flex flex-col gap-6 pb-24 overflow-hidden animate-in fade-in">
+      <div className="flex gap-2 border-b border-white/10 pb-4 overflow-x-auto no-scrollbar shrink-0">
+        {['dashboard', 'security', 'energy', 'vehicle', 'radar', 'finance', 'core', 'appearance'].map(t => (
+          <button key={t} onClick={() => setActiveTab(t as TabType)} className={`px-5 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-white/5 text-white/20 hover:bg-white/10'}`}>
+            {t}
           </button>
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar py-6">
-        <div className="max-w-5xl space-y-12 pb-10 mx-auto">
+      <div className="flex-1 overflow-y-auto no-scrollbar py-4">
+        <div className="max-w-5xl mx-auto space-y-10">
           
-          {activeTab === 'core' && (
-            <div className="space-y-10 animate-in slide-in-from-bottom-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">URL Instancia HA</label>
-                    <input type="text" value={haConfig.url} onChange={e => setHaConfig({...haConfig, url: e.target.value})} className="w-full glass bg-white/5 p-5 rounded-3xl outline-none text-xs text-white border border-white/10" />
-                 </div>
-                 <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">Access Token</label>
-                    <input type="password" value={haConfig.token} onChange={e => setHaConfig({...haConfig, token: e.target.value})} className="w-full glass bg-white/5 p-5 rounded-3xl outline-none text-xs text-white border border-white/10" />
-                 </div>
-              </div>
-              <div className="p-8 bg-blue-600/5 border border-blue-500/20 rounded-[40px]">
-                 <EntitySelector label="Widgets de Inicio (Dashboard)" value={haConfig.pinnedEntities} onChange={(v:any) => setHaConfig({...haConfig, pinnedEntities: v})} multi={true} />
-              </div>
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6">
+               <div className="flex justify-between items-center"><h3 className="text-[10px] font-black uppercase text-white/40">Editor Dashboard</h3><button onClick={() => setHaConfig({...haConfig, dashboardWidgets: [...haConfig.dashboardWidgets, {id: Math.random().toString(), entity_id: '', type: 'sensor', title: 'Nuevo Widget', colSpan: 1}]})} className="px-4 py-2 bg-blue-600 rounded-xl text-[9px] font-black uppercase">Añadir Widget</button></div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {haConfig.dashboardWidgets.map(w => (
+                    <div key={w.id} className="glass p-5 rounded-3xl border border-white/10 space-y-3">
+                       <div className="flex justify-between"><select value={w.type} onChange={e => setHaConfig({...haConfig, dashboardWidgets: haConfig.dashboardWidgets.map(x => x.id === w.id ? {...x, type: e.target.value as WidgetType} : x)})} className="bg-white/10 border-none text-[9px] uppercase font-bold text-blue-400 rounded-lg p-1"><option value="sensor">Sensor</option><option value="switch">Interruptor</option><option value="button">Botón</option><option value="climate">Clima</option><option value="chart">Gráfico</option></select><button onClick={() => setHaConfig({...haConfig, dashboardWidgets: haConfig.dashboardWidgets.filter(x => x.id !== w.id)})} className="text-red-500/50">×</button></div>
+                       <input value={w.title} onChange={e => setHaConfig({...haConfig, dashboardWidgets: haConfig.dashboardWidgets.map(x => x.id === w.id ? {...x, title: e.target.value} : x)})} placeholder="Título" className="w-full bg-white/5 p-2 rounded-xl text-[10px]" />
+                       <EntitySelector label="Entidad" value={w.entity_id} onChange={(v:any) => setHaConfig({...haConfig, dashboardWidgets: haConfig.dashboardWidgets.map(x => x.id === w.id ? {...x, entity_id: v} : x)})} />
+                    </div>
+                  ))}
+               </div>
             </div>
           )}
 
           {activeTab === 'energy' && (
-            <div className="space-y-10 animate-in slide-in-from-bottom-4">
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <EntitySelector label="Solar Instantánea" value={haConfig.solar_production_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_production_entity: v})} />
-                  <EntitySelector label="Solar Diario" value={haConfig.solar_daily_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_daily_entity: v})} />
-                  <EntitySelector label="Solar Mensual" value={haConfig.solar_monthly_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_monthly_entity: v})} />
-                  <EntitySelector label="Consumo Red" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} />
-                  <EntitySelector label="Exportación Red" value={haConfig.grid_export_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_export_entity: v})} />
-                  <EntitySelector label="Precio Energía" value={haConfig.energy_cost_entity} onChange={(v:any) => setHaConfig({...haConfig, energy_cost_entity: v})} />
-               </div>
-               <div className="p-8 bg-yellow-600/5 border border-yellow-500/20 rounded-[40px]">
-                  <EntitySelector label="Más Sensores de Energía (KPIs ilimitados)" value={haConfig.energy_extra_entities} onChange={(v:any) => setHaConfig({...haConfig, energy_extra_entities: v})} multi={true} />
-               </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               <EntitySelector label="Solar Instantánea" value={haConfig.solar_production_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_production_entity: v})} />
+               <EntitySelector label="Solar Hoy" value={haConfig.solar_daily_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_daily_entity: v})} />
+               <EntitySelector label="Solar Mes" value={haConfig.solar_monthly_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_monthly_entity: v})} />
+               <EntitySelector label="Consumo Red" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} />
+               <EntitySelector label="Exportación Red" value={haConfig.grid_export_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_export_entity: v})} />
+               <EntitySelector label="Precio Luz" value={haConfig.energy_cost_entity} onChange={(v:any) => setHaConfig({...haConfig, energy_cost_entity: v})} />
+               <div className="md:col-span-2 lg:col-span-3 pt-4 border-t border-white/5"><EntitySelector label="KPIs Extras Energía" value={haConfig.energy_extra_entities} onChange={(v:any) => setHaConfig({...haConfig, energy_extra_entities: v})} multi={true} /></div>
             </div>
           )}
 
           {activeTab === 'vehicle' && (
-            <div className="space-y-10 animate-in slide-in-from-bottom-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <EntitySelector label="Batería (%)" value={haConfig.vehicle.battery_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, battery_entity: v}})} />
-                <EntitySelector label="Autonomía (km)" value={haConfig.vehicle.range_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, range_entity: v}})} />
-                <EntitySelector label="Odómetro" value={haConfig.vehicle.odometer_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, odometer_entity: v}})} />
-                <EntitySelector label="Consumo Medio" value={haConfig.vehicle.avg_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, avg_consumption_entity: v}})} />
-                <EntitySelector label="Ahorro Acumulado" value={haConfig.vehicle.saving_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, saving_entity: v}})} />
-                <EntitySelector label="Uso Eléctrico" value={haConfig.vehicle.electric_use_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, electric_use_entity: v}})} />
-                <EntitySelector label="Límite Carga" value={haConfig.vehicle.charge_limit_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, charge_limit_entity: v}})} />
-                <EntitySelector label="Potencia Carga" value={haConfig.vehicle.charging_speed_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, charging_speed_entity: v}})} />
-                <EntitySelector label="Tiempo Restante" value={haConfig.vehicle.time_to_charge_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, time_to_charge_entity: v}})} />
-                <EntitySelector label="Conector" value={haConfig.vehicle.plug_status_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, plug_status_entity: v}})} />
-                <EntitySelector label="Cerraduras" value={haConfig.vehicle.lock_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, lock_entity: v}})} />
-                <EntitySelector label="Ventanas" value={haConfig.vehicle.windows_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, windows_entity: v}})} />
-                <EntitySelector label="Última Sincro" value={haConfig.vehicle.last_update_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, last_update_entity: v}})} />
-              </div>
-              <div className="p-8 bg-blue-600/5 border border-blue-500/20 rounded-[40px]">
-                 <EntitySelector label="Cualquier otro sensor de coche" value={haConfig.vehicle.extra_entities} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, extra_entities: v}})} multi={true} />
-              </div>
-              <div className="space-y-3">
-                 <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">URL Imagen Vehículo</label>
-                 <input type="text" value={haConfig.vehicle.image_url} onChange={e => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, image_url: e.target.value}})} className="w-full glass bg-white/5 p-5 rounded-3xl outline-none text-xs text-white border border-white/10" placeholder="https://..." />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               <EntitySelector label="Batería (%)" value={haConfig.vehicle.battery_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, battery_entity: v}})} />
+               <EntitySelector label="Autonomía" value={haConfig.vehicle.range_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, range_entity: v}})} />
+               <EntitySelector label="Odómetro" value={haConfig.vehicle.odometer_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, odometer_entity: v}})} />
+               <EntitySelector label="Consumo Medio" value={haConfig.vehicle.avg_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, avg_consumption_entity: v}})} />
+               <EntitySelector label="Ahorro" value={haConfig.vehicle.saving_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, saving_entity: v}})} />
+               <EntitySelector label="Estado (Parked/Charging)" value={haConfig.vehicle.status_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, status_entity: v}})} />
+               <EntitySelector label="Potencia Carga" value={haConfig.vehicle.charging_speed_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, charging_speed_entity: v}})} />
+               <EntitySelector label="Última Sincro" value={haConfig.vehicle.last_update_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, last_update_entity: v}})} />
+               <div className="md:col-span-2 lg:col-span-3"><EntitySelector label="Sensores Extras Coche" value={haConfig.vehicle.extra_entities} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, extra_entities: v}})} multi={true} /></div>
+               <div className="md:col-span-2 lg:col-span-3 space-y-2"><label className="text-[9px] uppercase font-black text-white/20 ml-4">URL Imagen Coche</label><input value={haConfig.vehicle.image_url} onChange={e => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, image_url: e.target.value}})} className="w-full bg-white/5 p-4 rounded-2xl text-xs" /></div>
             </div>
           )}
 
-          {activeTab === 'finance' && (
-            <div className="space-y-10 animate-in slide-in-from-bottom-4">
-               <div className="flex items-center gap-4 mb-4">
-                  <input type="checkbox" checked={fireflyConfig.use_sheets_mirror} onChange={e => setFireflyConfig({...fireflyConfig, use_sheets_mirror: e.target.checked})} className="w-6 h-6 rounded-lg bg-white/5 border-white/10" />
-                  <label className="text-xs font-black uppercase tracking-widest text-white">Usar Google Sheets Mirror (CSV)</label>
-               </div>
-               
-               {fireflyConfig.use_sheets_mirror ? (
-                  <div className="space-y-3">
-                     <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">Google Sheets CSV Public URL</label>
-                     <input type="text" value={fireflyConfig.sheets_csv_url} onChange={e => setFireflyConfig({...fireflyConfig, sheets_csv_url: e.target.value})} className="w-full glass bg-white/5 p-5 rounded-3xl outline-none text-xs text-white border border-white/10" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv" />
-                  </div>
-               ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <div className="space-y-3">
-                        <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">Firefly III URL</label>
-                        <input type="text" value={fireflyConfig.url} onChange={e => setFireflyConfig({...fireflyConfig, url: e.target.value})} className="w-full glass bg-white/5 p-5 rounded-3xl outline-none text-xs text-white border border-white/10" />
-                     </div>
-                     <div className="space-y-3">
-                        <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">Personal Access Token</label>
-                        <input type="password" value={fireflyConfig.token} onChange={e => setFireflyConfig({...fireflyConfig, token: e.target.value})} className="w-full glass bg-white/5 p-5 rounded-3xl outline-none text-xs text-white border border-white/10" />
-                     </div>
-                  </div>
-               )}
+          {activeTab === 'security' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <EntitySelector label="Cámaras CCTV" value={haConfig.security_cameras} onChange={(v:any) => setHaConfig({...haConfig, security_cameras: v})} multi={true} />
+               <EntitySelector label="Sensores Acceso" value={haConfig.security_sensors} onChange={(v:any) => setHaConfig({...haConfig, security_sensors: v})} multi={true} />
+               <EntitySelector label="Alarma" value={haConfig.alarm_entity} onChange={(v:any) => setHaConfig({...haConfig, alarm_entity: v})} />
             </div>
           )}
 
           {activeTab === 'radar' && (
-            <div className="space-y-8 animate-in slide-in-from-bottom-4">
-               <EntitySelector label="Rastreo de Personas" value={haConfig.tracked_people} onChange={(v:any) => setHaConfig({...haConfig, tracked_people: v})} multi={true} />
+            <EntitySelector label="Rastreo Personas" value={haConfig.tracked_people} onChange={(v:any) => setHaConfig({...haConfig, tracked_people: v})} multi={true} />
+          )}
+
+          {activeTab === 'finance' && (
+            <div className="space-y-6">
+               <div className="flex items-center gap-3"><input type="checkbox" checked={fireflyConfig.use_sheets_mirror} onChange={e => setFireflyConfig({...fireflyConfig, use_sheets_mirror: e.target.checked})} /><label className="text-[10px] font-black uppercase text-white">Usar Google Sheets Mirror</label></div>
+               <input value={fireflyConfig.sheets_csv_url} onChange={e => setFireflyConfig({...fireflyConfig, sheets_csv_url: e.target.value})} placeholder="URL CSV de Google Sheets" className="w-full bg-white/5 p-4 rounded-2xl text-xs" />
+            </div>
+          )}
+
+          {activeTab === 'core' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div className="space-y-2"><label className="text-[9px] uppercase font-black text-white/20 ml-4">URL Home Assistant</label><input value={haConfig.url} onChange={e => setHaConfig({...haConfig, url: e.target.value})} className="w-full bg-white/5 p-4 rounded-2xl text-xs" /></div>
+               <div className="space-y-2"><label className="text-[9px] uppercase font-black text-white/20 ml-4">Token Maestro</label><input type="password" value={haConfig.token} onChange={e => setHaConfig({...haConfig, token: e.target.value})} className="w-full bg-white/5 p-4 rounded-2xl text-xs" /></div>
             </div>
           )}
 
           {activeTab === 'appearance' && (
-            <div className="space-y-8 animate-in slide-in-from-bottom-4">
-               <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">Fondo de Pantalla Personalizado (URL)</label>
-                  <input type="text" value={haConfig.custom_bg_url} onChange={e => setHaConfig({...haConfig, custom_bg_url: e.target.value})} className="w-full glass bg-white/5 border border-white/10 rounded-3xl px-8 py-5 text-xs text-white" />
-               </div>
-            </div>
+            <div className="space-y-2"><label className="text-[9px] uppercase font-black text-white/20 ml-4">Fondo de Pantalla URL</label><input value={haConfig.custom_bg_url} onChange={e => setHaConfig({...haConfig, custom_bg_url: e.target.value})} className="w-full bg-white/5 p-4 rounded-2xl text-xs" /></div>
           )}
+
         </div>
       </div>
 
-      <div className="shrink-0 flex justify-center pt-10 border-t border-white/10">
-        <button onClick={handleSave} className="w-full max-w-2xl py-7 bg-blue-600 rounded-[40px] font-black text-[14px] tracking-[0.6em] uppercase shadow-[0_0_50px_rgba(59,130,246,0.4)] transition-all hover:scale-[1.02] active:scale-95 text-white">
-          {status === 'saving' ? 'SINCRONIZANDO...' : status === 'success' ? '✓ AJUSTES GUARDADOS' : 'APLICAR CONFIGURACIÓN MAESTRA'}
+      <div className="shrink-0 flex justify-center pt-6 border-t border-white/10">
+        <button onClick={handleSave} className="w-full max-w-xl py-5 bg-blue-600 rounded-3xl font-black text-[11px] uppercase tracking-[0.3em] shadow-2xl hover:scale-[1.02] text-white transition-all">
+          {status === 'saving' ? 'PROCESANDO...' : status === 'success' ? 'SINCRO OK ✓' : 'GUARDAR CONFIGURACIÓN MAESTRA'}
         </button>
       </div>
     </div>
