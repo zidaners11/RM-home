@@ -146,7 +146,7 @@ const Dashboard: React.FC = () => {
                <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/5 opacity-30">
                   <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2"/></svg>
                </div>
-               <p className="text-[12px] font-black uppercase tracking-[0.5em] text-white/20">Configura tus Widgets en Ajustes > HA Core</p>
+               <p className="text-[12px] font-black uppercase tracking-[0.5em] text-white/20">Configura tus Widgets en Ajustes - HA Core</p>
             </div>
          )}
       </div>
