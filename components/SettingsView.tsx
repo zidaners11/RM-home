@@ -96,7 +96,7 @@ const SettingsView: React.FC = () => {
     const filtered = (haStates || []).filter(s => 
       s.entity_id.toLowerCase().includes(search.toLowerCase()) ||
       (s.attributes.friendly_name || '').toLowerCase().includes(search.toLowerCase())
-    ).slice(0, 80);
+    ).slice(0, 100);
 
     return (
       <div className="space-y-2 relative">
@@ -110,7 +110,7 @@ const SettingsView: React.FC = () => {
         {isOpen && (
           <div className="absolute z-[200] w-full mt-3 glass-dark border border-white/20 rounded-[32px] p-6 shadow-2xl animate-in fade-in slide-in-from-top-4 backdrop-blur-3xl">
             <div className="relative mb-4">
-               <input autoFocus placeholder="Buscar en Home Assistant..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/30" />
+               <input autoFocus placeholder="Buscar entidad..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/30" />
             </div>
             <div className="max-h-60 overflow-y-auto no-scrollbar space-y-1">
               {filtered.map(s => {
@@ -180,12 +180,13 @@ const SettingsView: React.FC = () => {
           {activeTab === 'energy' && (
             <div className="space-y-8 animate-in slide-in-from-bottom-4">
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <EntitySelector label="Producción Instantánea Solar" value={haConfig.solar_production_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_production_entity: v})} />
-                  <EntitySelector label="Solar Hoy (kWh)" value={haConfig.solar_daily_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_daily_entity: v})} />
-                  <EntitySelector label="Solar Mes (kWh)" value={haConfig.solar_monthly_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_monthly_entity: v})} />
-                  <EntitySelector label="Consumo de Red (W)" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} />
-                  <EntitySelector label="Exportación de Red (W)" value={haConfig.grid_export_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_export_entity: v})} />
-                  <EntitySelector label="Coste de Energía (€/kWh)" value={haConfig.energy_cost_entity} onChange={(v:any) => setHaConfig({...haConfig, energy_cost_entity: v})} />
+                  <EntitySelector label="Solar Instantánea" value={haConfig.solar_production_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_production_entity: v})} />
+                  <EntitySelector label="Solar Diario" value={haConfig.solar_daily_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_daily_entity: v})} />
+                  <EntitySelector label="Solar Mensual" value={haConfig.solar_monthly_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_monthly_entity: v})} />
+                  <EntitySelector label="Consumo Red" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} />
+                  <EntitySelector label="Exportación Red" value={haConfig.grid_export_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_export_entity: v})} />
+                  <EntitySelector label="Precio Energía" value={haConfig.energy_cost_entity} onChange={(v:any) => setHaConfig({...haConfig, energy_cost_entity: v})} />
+                  <EntitySelector label="Batería Vehículo" value={haConfig.car_battery_entity} onChange={(v:any) => setHaConfig({...haConfig, car_battery_entity: v})} />
                </div>
             </div>
           )}
@@ -195,13 +196,20 @@ const SettingsView: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <EntitySelector label="Batería (%)" value={haConfig.vehicle.battery_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, battery_entity: v}})} />
                 <EntitySelector label="Autonomía (km)" value={haConfig.vehicle.range_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, range_entity: v}})} />
-                <EntitySelector label="Odómetro (km)" value={haConfig.vehicle.odometer_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, odometer_entity: v}})} />
-                <EntitySelector label="Cerraduras" value={haConfig.vehicle.lock_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, lock_entity: v}})} />
+                <EntitySelector label="Odómetro" value={haConfig.vehicle.odometer_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, odometer_entity: v}})} />
+                <EntitySelector label="Consumo Medio" value={haConfig.vehicle.avg_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, avg_consumption_entity: v}})} />
+                <EntitySelector label="Ahorro Acumulado" value={haConfig.vehicle.saving_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, saving_entity: v}})} />
+                <EntitySelector label="Uso Eléctrico" value={haConfig.vehicle.electric_use_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, electric_use_entity: v}})} />
+                <EntitySelector label="Próximo Servicio" value={haConfig.vehicle.service_km_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, service_km_entity: v}})} />
+                <EntitySelector label="Ventanas" value={haConfig.vehicle.windows_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, windows_entity: v}})} />
                 <EntitySelector label="Límite Carga" value={haConfig.vehicle.charge_limit_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, charge_limit_entity: v}})} />
-                <EntitySelector label="Estado Conector" value={haConfig.vehicle.plug_status_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, plug_status_entity: v}})} />
+                <EntitySelector label="Potencia Carga" value={haConfig.vehicle.charging_speed_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, charging_speed_entity: v}})} />
+                <EntitySelector label="Tiempo Carga" value={haConfig.vehicle.time_to_charge_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, time_to_charge_entity: v}})} />
+                <EntitySelector label="Cerraduras" value={haConfig.vehicle.lock_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, lock_entity: v}})} />
+                <EntitySelector label="Sincronización" value={haConfig.vehicle.last_update_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, last_update_entity: v}})} />
               </div>
               <div className="space-y-3">
-                 <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">URL Imagen Coche</label>
+                 <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">URL Imagen Vehículo</label>
                  <input type="text" value={haConfig.vehicle.image_url} onChange={e => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, image_url: e.target.value}})} className="w-full glass bg-white/5 p-5 rounded-3xl outline-none text-xs text-white border border-white/10" placeholder="https://..." />
               </div>
             </div>
@@ -243,7 +251,7 @@ const SettingsView: React.FC = () => {
           {activeTab === 'appearance' && (
             <div className="space-y-8 animate-in slide-in-from-bottom-4">
                <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">Fondo de Pantalla Global (URL)</label>
+                  <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">Fondo de Pantalla (URL)</label>
                   <input type="text" value={haConfig.custom_bg_url} onChange={e => setHaConfig({...haConfig, custom_bg_url: e.target.value})} className="w-full glass bg-white/5 border border-white/10 rounded-3xl px-8 py-5 text-xs text-white" />
                </div>
             </div>
