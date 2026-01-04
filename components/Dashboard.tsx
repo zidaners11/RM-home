@@ -9,11 +9,11 @@ const Dashboard: React.FC = () => {
   const [widgets, setWidgets] = useState<WidgetConfig[]>([]);
   const [haStates, setHaStates] = useState<any[]>([]);
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig | null>(null);
-  const [aiReport, setAiReport] = useState<{ text: string, sources: any[] }>({ text: 'Iniciando protocolos de análisis...', sources: [] });
+  const [aiReport, setAiReport] = useState<{ text: string, sources: any[] }>({ text: 'Sincronizando matriz...', sources: [] });
   const [historyData, setHistoryData] = useState<{[key: string]: any[]}>({});
   const [loadingAI, setLoadingAI] = useState(true);
 
-  useEffect(() => {
+  const loadConfig = () => {
     const savedHA = localStorage.getItem('nexus_ha_config');
     if (savedHA) {
       try {
@@ -21,10 +21,22 @@ const Dashboard: React.FC = () => {
         setHaConfig(config);
         setWidgets(config.dashboardWidgets || []);
         refreshData(config);
-        const interval = setInterval(() => refreshData(config), 15000);
-        return () => clearInterval(interval);
       } catch(e) { console.error(e); }
     }
+  };
+
+  useEffect(() => {
+    loadConfig();
+    // Escuchar si la configuración cambia (por sincronización de nube)
+    window.addEventListener('nexus_config_updated', loadConfig);
+    const interval = setInterval(() => {
+      if (haConfig) refreshData(haConfig);
+    }, 15000);
+
+    return () => {
+      window.removeEventListener('nexus_config_updated', loadConfig);
+      clearInterval(interval);
+    };
   }, []);
 
   const refreshData = async (config: HomeAssistantConfig) => {
@@ -32,7 +44,6 @@ const Dashboard: React.FC = () => {
     if (states) {
       setHaStates(states);
       
-      // Fetch History for Charts
       config.dashboardWidgets.forEach(async (w) => {
         if (w.type === 'chart') {
           const h = await fetchHAHistory(config.url, config.token, w.entity_id, 24);
@@ -62,7 +73,6 @@ const Dashboard: React.FC = () => {
     const val = state?.state || '---';
     const friendlyName = widget.title || state?.attributes?.friendly_name || widget.entity_id;
 
-    // INTERRUPTOR (Luz/Enchufe)
     if (widget.type === 'switch') {
       const isOn = val === 'on';
       const domain = widget.entity_id.split('.')[0];
@@ -84,7 +94,6 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    // BOTÓN (Script/Escena)
     if (widget.type === 'button') {
       const domain = widget.entity_id.split('.')[0];
       return (
@@ -97,7 +106,6 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    // GRÁFICO (KPI con tendencia)
     if (widget.type === 'chart') {
       const chartPoints = historyData[widget.entity_id] || [];
       return (
@@ -113,16 +121,12 @@ const Dashboard: React.FC = () => {
               <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 truncate">{friendlyName}</p>
               <div>
                  <h4 className="text-4xl font-black text-white italic tracking-tighter">{val}<span className="text-[10px] ml-1 text-white/20 uppercase font-black not-italic">{state?.attributes?.unit_of_measurement}</span></h4>
-                 <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[8px] font-mono text-white/10 uppercase">Sincro_OK</span>
-                 </div>
               </div>
            </div>
         </div>
       );
     }
 
-    // CLIMATIZADOR (Simple)
     if (widget.type === 'climate') {
       const temp = state?.attributes?.current_temperature || val;
       return (
@@ -144,13 +148,11 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    // SENSOR (Default KPI)
     return (
       <div key={widget.id} className="glass p-8 rounded-[40px] border border-white/5 flex flex-col justify-between h-[200px] shadow-lg group hover:bg-white/[0.02] transition-all">
          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 truncate group-hover:text-blue-400 transition-colors">{friendlyName}</p>
          <div>
             <h4 className="text-4xl font-black text-white italic tracking-tighter">{val}<span className="text-xs ml-2 text-white/20 uppercase font-black not-italic">{state?.attributes?.unit_of_measurement}</span></h4>
-            <span className="text-[8px] font-mono text-white/10 uppercase tracking-tighter">{widget.entity_id}</span>
          </div>
       </div>
     );
@@ -158,7 +160,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-10 h-full pb-24">
-      {/* Nexus Strategic Core Hero */}
       <div className="glass rounded-[60px] p-12 border border-blue-500/20 relative overflow-hidden shadow-2xl shrink-0">
          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[150px]" />
          <div className="flex flex-col md:flex-row gap-12 relative z-10 items-center">
@@ -170,21 +171,14 @@ const Dashboard: React.FC = () => {
                <div className={`text-xl leading-relaxed text-white/90 font-medium ${loadingAI ? 'animate-pulse' : ''}`}>
                   {aiReport.text}
                </div>
-               {/* Fix: Always extract URLs from groundingChunks and list them when Google Search is used */}
                {aiReport.sources && aiReport.sources.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-4 justify-center md:justify-start">
                     {aiReport.sources.map((source: any, idx: number) => {
                       const web = source.web;
                       if (!web) return null;
                       return (
-                        <a 
-                          key={idx} 
-                          href={web.uri} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-[8px] bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-full text-blue-400 transition-all uppercase font-black tracking-widest hover:border-blue-400/30 shadow-lg"
-                        >
-                          {web.title || 'Referencia Externa'}
+                        <a key={idx} href={web.uri} target="_blank" rel="noopener noreferrer" className="text-[8px] bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-full text-blue-400 transition-all uppercase font-black tracking-widest">
+                          {web.title || 'Referencia'}
                         </a>
                       );
                     })}
@@ -196,10 +190,9 @@ const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
          {widgets.map(renderWidget)}
-         
          {widgets.length === 0 && (
             <div className="col-span-full py-20 text-center glass rounded-[48px] border border-dashed border-white/10 opacity-40">
-               <p className="text-[12px] font-black uppercase tracking-[0.5em]">Abre Ajustes para añadir widgets interactivos</p>
+               <p className="text-[12px] font-black uppercase tracking-[0.5em]">No hay widgets en la nube para este perfil</p>
             </div>
          )}
       </div>

@@ -1,6 +1,6 @@
 
 /**
- * Nexus Home Assistant Bridge - Cloud Sync Edition
+ * Nexus Home Assistant Bridge - Cloud Sync Edition v2.1
  */
 
 export const DEFAULT_HA_URL = "https://3p30htdlzk9a3yu1yzb04956g3pkp1ky.ui.nabu.casa";
@@ -28,7 +28,8 @@ export async function fetchHAStates(url: string = DEFAULT_HA_URL, token: string 
     if (!response.ok) throw new Error(`HA_FETCH_FAILED_${response.status}`);
     return await response.json();
   } catch (error: any) {
-    throw error;
+    console.error("HA Fetch States Error:", error);
+    return null;
   }
 }
 
@@ -71,17 +72,27 @@ export async function callHAService(url: string = DEFAULT_HA_URL, token: string 
   }
 }
 
-/**
- * Recupera la configuración guardada en HA para un usuario específico.
- */
 export async function getCloudSyncConfig(username: string, url: string = DEFAULT_HA_URL, token: string = DEFAULT_HA_TOKEN) {
   try {
+    console.log(`[CLOUD_SYNC] Intentando descargar de: ${url}`);
     const states = await fetchHAStates(url, token);
+    if (!states) return null;
+    
+    // El ID de la notificación debe coincidir con el que creamos en saveConfigToHA
     const syncId = `persistent_notification.nexus_config_${username.toLowerCase()}`;
     const syncNotification = states.find((s: any) => s.entity_id === syncId);
+    
     if (syncNotification && syncNotification.attributes.message) {
-      return JSON.parse(syncNotification.attributes.message);
+      try {
+        const config = JSON.parse(syncNotification.attributes.message);
+        console.log("[CLOUD_SYNC] Configuración JSON parseada correctamente.");
+        return config;
+      } catch (e) {
+        console.error("[CLOUD_SYNC] El mensaje en la notificación no es un JSON válido.");
+        return null;
+      }
     }
+    console.warn(`[CLOUD_SYNC] No se encontró la entidad ${syncId} en este Home Assistant.`);
     return null;
   } catch (e) {
     console.error("Cloud Sync Load Error:", e);
@@ -89,14 +100,12 @@ export async function getCloudSyncConfig(username: string, url: string = DEFAULT
   }
 }
 
-/**
- * Guarda la configuración en HA como una notificación persistente (nuestra "DB" Cloud).
- */
 export async function saveConfigToHA(username: string, configData: any, url: string = DEFAULT_HA_URL, token: string = DEFAULT_HA_TOKEN) {
   try {
     const cleanUrl = getCleanBaseUrl(url);
     const syncId = `nexus_config_${username.toLowerCase()}`;
-    await fetch(`${cleanUrl}/api/services/persistent_notification/create`, {
+    
+    const response = await fetch(`${cleanUrl}/api/services/persistent_notification/create`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${token.trim()}`,
@@ -109,7 +118,8 @@ export async function saveConfigToHA(username: string, configData: any, url: str
         message: JSON.stringify(configData)
       }),
     });
-    return true;
+    
+    return response.ok;
   } catch (e) {
     console.error("Cloud Sync Save Error:", e);
     return false;

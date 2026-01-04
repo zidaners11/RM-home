@@ -6,9 +6,10 @@ interface SidebarProps {
   activeSection: AppSection;
   onSectionChange: (section: AppSection) => void;
   onLogout: () => void;
+  onForceSync?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange, onLogout, onForceSync }) => {
   const menuItems = [
     { id: AppSection.DASHBOARD, icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', label: 'Inicio' },
     { id: AppSection.ENERGY, icon: 'M13 10V3L4 14h7v7l9-11h-7z', label: 'Energía' },
@@ -34,7 +35,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange, onLog
               <span className="text-[7px] uppercase tracking-widest font-black text-center">{item.label}</span>
             </button>
           ))}
+          
+          <div className="h-px w-8 bg-white/5 my-2" />
+          
+          <button onClick={onForceSync} className="p-3 w-full rounded-2xl text-white/20 hover:text-blue-400 hover:bg-white/5 transition-all flex flex-col items-center gap-1.5">
+             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+             <span className="text-[6px] uppercase tracking-widest font-black text-center">Sync Cloud</span>
+          </button>
         </div>
+        
         <button onClick={onLogout} className="p-4 text-white/10 hover:text-red-400 transition-colors mt-6 border-t border-white/5 w-full"><svg className="w-5 h-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7" /></svg></button>
       </nav>
       
@@ -45,6 +54,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange, onLog
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
           </button>
         ))}
+        <button onClick={onForceSync} className="flex flex-col items-center justify-center px-3 h-full gap-1 text-white/20">
+           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+        </button>
       </nav>
     </>
   );
