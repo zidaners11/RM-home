@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { HomeAssistantConfig, FireflyConfig, WidgetConfig, WidgetType } from '../types';
-import { fetchHAStates, DEFAULT_HA_URL, DEFAULT_HA_TOKEN } from '../homeAssistantService';
+import { fetchHAStates, DEFAULT_HA_URL, DEFAULT_HA_TOKEN, saveConfigToHA } from '../homeAssistantService';
 
 const SettingsView: React.FC = () => {
   type TabType = 'dashboard' | 'energy' | 'vehicle' | 'security' | 'radar' | 'finance' | 'core' | 'appearance';
@@ -73,10 +73,17 @@ const SettingsView: React.FC = () => {
     } catch (e) { }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setStatus('saving');
+    const username = localStorage.getItem('nexus_user') || 'guest';
+    
+    // Guardar localmente
     localStorage.setItem('nexus_ha_config', JSON.stringify(haConfig));
     localStorage.setItem('nexus_firefly_config', JSON.stringify(fireflyConfig));
+    
+    // Sincronizar con la "Nube" (Home Assistant)
+    await saveConfigToHA(username, haConfig, haConfig.url, haConfig.token);
+    
     setTimeout(() => {
       setStatus('success');
       setTimeout(() => setStatus('idle'), 1500);
@@ -215,7 +222,7 @@ const SettingsView: React.FC = () => {
 
       <div className="shrink-0 flex justify-center pt-6 border-t border-white/10">
         <button onClick={handleSave} className="w-full max-w-xl py-5 bg-blue-600 rounded-3xl font-black text-[11px] uppercase tracking-[0.3em] shadow-2xl hover:scale-[1.02] text-white transition-all">
-          {status === 'saving' ? 'PROCESANDO...' : status === 'success' ? 'SINCRO OK ✓' : 'GUARDAR CONFIGURACIÓN MAESTRA'}
+          {status === 'saving' ? 'PROCESANDO Y NUBE...' : status === 'success' ? 'SINCRO OK ✓' : 'GUARDAR CONFIGURACIÓN MAESTRA'}
         </button>
       </div>
     </div>

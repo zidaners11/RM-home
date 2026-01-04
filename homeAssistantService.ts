@@ -1,7 +1,6 @@
 
 /**
- * Nexus Home Assistant Bridge - Master Control Edition
- * Pre-configured for Nabu Casa Secure Tunnel
+ * Nexus Home Assistant Bridge - Cloud Sync Edition
  */
 
 export const DEFAULT_HA_URL = "https://3p30htdlzk9a3yu1yzb04956g3pkp1ky.ui.nabu.casa";
@@ -30,28 +29,6 @@ export async function fetchHAStates(url: string = DEFAULT_HA_URL, token: string 
     return await response.json();
   } catch (error: any) {
     throw error;
-  }
-}
-
-export async function notifyAuthorizationRequest(username: string) {
-  try {
-    const cleanUrl = getCleanBaseUrl(DEFAULT_HA_URL);
-    await fetch(`${cleanUrl}/api/services/persistent_notification/create`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${DEFAULT_HA_TOKEN.trim()}`,
-        "Content-Type": "application/json",
-      },
-      mode: 'cors',
-      body: JSON.stringify({
-        notification_id: "nexus_auth_request",
-        title: "NEXUS_ACCESS_REQUEST",
-        message: `ALERTA: El usuario [${username}] está intentando acceder a Nexus Home Hub. Se ha enviado un correo de validación a juanmirs@gmail.com.`
-      }),
-    });
-    return true;
-  } catch (e) {
-    return false;
   }
 }
 
@@ -94,22 +71,31 @@ export async function callHAService(url: string = DEFAULT_HA_URL, token: string 
   }
 }
 
-export async function getCloudSyncConfig(url: string = DEFAULT_HA_URL, token: string = DEFAULT_HA_TOKEN) {
+/**
+ * Recupera la configuración guardada en HA para un usuario específico.
+ */
+export async function getCloudSyncConfig(username: string, url: string = DEFAULT_HA_URL, token: string = DEFAULT_HA_TOKEN) {
   try {
     const states = await fetchHAStates(url, token);
-    const syncNotification = states.find((s: any) => s.entity_id === 'persistent_notification.nexus_cloud_sync');
+    const syncId = `persistent_notification.nexus_config_${username.toLowerCase()}`;
+    const syncNotification = states.find((s: any) => s.entity_id === syncId);
     if (syncNotification && syncNotification.attributes.message) {
       return JSON.parse(syncNotification.attributes.message);
     }
     return null;
   } catch (e) {
+    console.error("Cloud Sync Load Error:", e);
     return null;
   }
 }
 
-export async function saveConfigToHA(url: string = DEFAULT_HA_URL, token: string = DEFAULT_HA_TOKEN, configData: any) {
+/**
+ * Guarda la configuración en HA como una notificación persistente (nuestra "DB" Cloud).
+ */
+export async function saveConfigToHA(username: string, configData: any, url: string = DEFAULT_HA_URL, token: string = DEFAULT_HA_TOKEN) {
   try {
     const cleanUrl = getCleanBaseUrl(url);
+    const syncId = `nexus_config_${username.toLowerCase()}`;
     await fetch(`${cleanUrl}/api/services/persistent_notification/create`, {
       method: "POST",
       headers: {
@@ -118,34 +104,14 @@ export async function saveConfigToHA(url: string = DEFAULT_HA_URL, token: string
       },
       mode: 'cors',
       body: JSON.stringify({
-        notification_id: "nexus_cloud_sync",
-        title: "NEXUS_SYNC_DATA",
+        notification_id: syncId,
+        title: `NEXUS_SYNC_${username.toUpperCase()}`,
         message: JSON.stringify(configData)
       }),
     });
     return true;
   } catch (e) {
+    console.error("Cloud Sync Save Error:", e);
     return false;
-  }
-}
-
-export async function testHAConnection(url: string, token: string) {
-  try {
-    const cleanUrl = getCleanBaseUrl(url);
-    const response = await fetch(`${cleanUrl}/api/config`, {
-      method: 'GET',
-      headers: {
-        "Authorization": `Bearer ${token.trim()}`,
-        "Content-Type": "application/json",
-      },
-      mode: 'cors'
-    });
-    if (response.ok) {
-      const data = await response.json();
-      return { success: true, version: data.version };
-    }
-    return { success: false, error: `HTTP_${response.status}` };
-  } catch (error: any) {
-    return { success: false, error: error.message };
   }
 }

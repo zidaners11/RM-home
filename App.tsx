@@ -14,6 +14,7 @@ import MapView from './components/MapView';
 import SheetsView from './components/SheetsView';
 import SettingsView from './components/SettingsView';
 import AIInsightPanel from './components/AIInsightPanel';
+import { getCloudSyncConfig } from './homeAssistantService';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -21,6 +22,7 @@ const App: React.FC = () => {
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.DASHBOARD);
   const [showAI, setShowAI] = useState<boolean>(false);
   const [bgUrl, setBgUrl] = useState<string>('https://i.redd.it/6qq8lk9qjqp21.jpg');
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   useEffect(() => {
     const session = localStorage.getItem('nexus_session_active');
@@ -28,29 +30,36 @@ const App: React.FC = () => {
     if (session === 'true' && storedUser) {
       setIsAuthenticated(true);
       setUser(storedUser);
-      loadUserConfig();
+      syncUserConfig(storedUser);
     }
   }, []);
 
-  const loadUserConfig = () => {
-    const savedHA = localStorage.getItem('nexus_ha_config');
-    if (savedHA) {
-      try {
-        const config: HomeAssistantConfig = JSON.parse(savedHA);
-        if (config.custom_bg_url) {
-          setBgUrl(config.custom_bg_url);
-        }
-      } catch (e) {
-        console.error("Error loading background", e);
+  const syncUserConfig = async (username: string) => {
+    setIsSyncing(true);
+    // Intentar descargar de la "nube" de Home Assistant
+    const cloudConfig = await getCloudSyncConfig(username);
+    if (cloudConfig) {
+      localStorage.setItem('nexus_ha_config', JSON.stringify(cloudConfig));
+      if (cloudConfig.custom_bg_url) setBgUrl(cloudConfig.custom_bg_url);
+    } else {
+      // Si no hay nube, cargar local
+      const savedHA = localStorage.getItem('nexus_ha_config');
+      if (savedHA) {
+        try {
+          const config: HomeAssistantConfig = JSON.parse(savedHA);
+          if (config.custom_bg_url) setBgUrl(config.custom_bg_url);
+        } catch (e) {}
       }
     }
+    setIsSyncing(false);
   };
 
-  const handleLogin = (username: string) => {
+  const handleLogin = async (username: string) => {
     localStorage.setItem('nexus_session_active', 'true');
+    localStorage.setItem('nexus_user', username);
     setUser(username);
     setIsAuthenticated(true);
-    loadUserConfig();
+    await syncUserConfig(username);
   };
 
   const handleLogout = () => {
@@ -71,6 +80,13 @@ const App: React.FC = () => {
         backgroundAttachment: 'fixed'
       }}
     >
+      {isSyncing && (
+        <div className="absolute inset-0 z-[200] bg-black/80 backdrop-blur-3xl flex flex-col items-center justify-center gap-6">
+           <div className="w-20 h-20 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+           <p className="text-blue-400 font-black text-xs uppercase tracking-[0.5em] animate-pulse">Sincronizando Perfil Nexus...</p>
+        </div>
+      )}
+
       <div className="absolute inset-0 bg-black/30 pointer-events-none z-0" />
       <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} onLogout={handleLogout} />
       <main className="flex-1 relative z-10 p-4 md:p-8 flex flex-col h-full overflow-hidden">
@@ -79,7 +95,7 @@ const App: React.FC = () => {
             <h1 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
               RM <span className="font-bold text-blue-400">Home</span> Hub
             </h1>
-            <p className="text-white/30 text-[9px] uppercase tracking-[0.5em] font-black">Nexus OS // Unidad: {user}</p>
+            <p className="text-white/30 text-[9px] uppercase tracking-[0.5em] font-black">Nexus OS // Unidad: {user} // Cloud_Sync: ON</p>
           </div>
           <button onClick={() => setShowAI(!showAI)} className="flex items-center gap-3 px-6 py-3 glass rounded-full border border-blue-400/20 hover:bg-blue-400/10 transition-all group">
              <span className={`w-2 h-2 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-white/20'}`} />
