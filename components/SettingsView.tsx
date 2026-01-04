@@ -21,6 +21,7 @@ const SettingsView: React.FC = () => {
     grid_consumption_entity: '',
     grid_export_entity: '',
     energy_cost_entity: '',
+    energy_extra_entities: [],
     car_battery_entity: '',
     custom_bg_url: 'https://i.redd.it/6qq8lk9qjqp21.jpg',
     vehicle: { 
@@ -28,7 +29,7 @@ const SettingsView: React.FC = () => {
       electric_use_entity: '', avg_consumption_entity: '', time_to_charge_entity: '', charge_limit_entity: '', plug_status_entity: '',
       km_today_entity: '', charging_speed_entity: '', status_entity: '', lock_entity: '', climate_entity: '',
       tire_pressure_fl_entity: '', tire_pressure_fr_entity: '', tire_pressure_rl_entity: '', tire_pressure_rr_entity: '',
-      windows_entity: '', last_update_entity: '', image_url: ''
+      windows_entity: '', last_update_entity: '', image_url: '', extra_entities: []
     },
     weather_nodes: { 
       torrejon: {id: 'tj', name: 'TJ'}, 
@@ -55,7 +56,12 @@ const SettingsView: React.FC = () => {
           ...INITIAL_HA_CONFIG,
           ...parsed,
           pinnedEntities: parsed.pinnedEntities || [],
-          vehicle: { ...INITIAL_HA_CONFIG.vehicle, ...(parsed.vehicle || {}) }
+          energy_extra_entities: parsed.energy_extra_entities || [],
+          vehicle: { 
+            ...INITIAL_HA_CONFIG.vehicle, 
+            ...(parsed.vehicle || {}),
+            extra_entities: parsed.vehicle?.extra_entities || []
+          }
         });
         loadHAEntities(parsed.url || DEFAULT_HA_URL, parsed.token || DEFAULT_HA_TOKEN);
       } catch (e) { console.error("Restore failed", e); }
@@ -178,7 +184,7 @@ const SettingsView: React.FC = () => {
           )}
 
           {activeTab === 'energy' && (
-            <div className="space-y-8 animate-in slide-in-from-bottom-4">
+            <div className="space-y-10 animate-in slide-in-from-bottom-4">
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <EntitySelector label="Solar Instantánea" value={haConfig.solar_production_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_production_entity: v})} />
                   <EntitySelector label="Solar Diario" value={haConfig.solar_daily_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_daily_entity: v})} />
@@ -186,7 +192,9 @@ const SettingsView: React.FC = () => {
                   <EntitySelector label="Consumo Red" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} />
                   <EntitySelector label="Exportación Red" value={haConfig.grid_export_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_export_entity: v})} />
                   <EntitySelector label="Precio Energía" value={haConfig.energy_cost_entity} onChange={(v:any) => setHaConfig({...haConfig, energy_cost_entity: v})} />
-                  <EntitySelector label="Batería Vehículo" value={haConfig.car_battery_entity} onChange={(v:any) => setHaConfig({...haConfig, car_battery_entity: v})} />
+               </div>
+               <div className="p-8 bg-yellow-600/5 border border-yellow-500/20 rounded-[40px]">
+                  <EntitySelector label="Más Sensores de Energía (KPIs ilimitados)" value={haConfig.energy_extra_entities} onChange={(v:any) => setHaConfig({...haConfig, energy_extra_entities: v})} multi={true} />
                </div>
             </div>
           )}
@@ -200,13 +208,16 @@ const SettingsView: React.FC = () => {
                 <EntitySelector label="Consumo Medio" value={haConfig.vehicle.avg_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, avg_consumption_entity: v}})} />
                 <EntitySelector label="Ahorro Acumulado" value={haConfig.vehicle.saving_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, saving_entity: v}})} />
                 <EntitySelector label="Uso Eléctrico" value={haConfig.vehicle.electric_use_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, electric_use_entity: v}})} />
-                <EntitySelector label="Próximo Servicio" value={haConfig.vehicle.service_km_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, service_km_entity: v}})} />
-                <EntitySelector label="Ventanas" value={haConfig.vehicle.windows_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, windows_entity: v}})} />
                 <EntitySelector label="Límite Carga" value={haConfig.vehicle.charge_limit_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, charge_limit_entity: v}})} />
                 <EntitySelector label="Potencia Carga" value={haConfig.vehicle.charging_speed_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, charging_speed_entity: v}})} />
-                <EntitySelector label="Tiempo Carga" value={haConfig.vehicle.time_to_charge_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, time_to_charge_entity: v}})} />
+                <EntitySelector label="Tiempo Restante" value={haConfig.vehicle.time_to_charge_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, time_to_charge_entity: v}})} />
+                <EntitySelector label="Conector" value={haConfig.vehicle.plug_status_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, plug_status_entity: v}})} />
                 <EntitySelector label="Cerraduras" value={haConfig.vehicle.lock_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, lock_entity: v}})} />
-                <EntitySelector label="Sincronización" value={haConfig.vehicle.last_update_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, last_update_entity: v}})} />
+                <EntitySelector label="Ventanas" value={haConfig.vehicle.windows_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, windows_entity: v}})} />
+                <EntitySelector label="Última Sincro" value={haConfig.vehicle.last_update_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, last_update_entity: v}})} />
+              </div>
+              <div className="p-8 bg-blue-600/5 border border-blue-500/20 rounded-[40px]">
+                 <EntitySelector label="Cualquier otro sensor de coche" value={haConfig.vehicle.extra_entities} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, extra_entities: v}})} multi={true} />
               </div>
               <div className="space-y-3">
                  <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">URL Imagen Vehículo</label>
@@ -251,7 +262,7 @@ const SettingsView: React.FC = () => {
           {activeTab === 'appearance' && (
             <div className="space-y-8 animate-in slide-in-from-bottom-4">
                <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">Fondo de Pantalla (URL)</label>
+                  <label className="text-[10px] font-black uppercase text-white/20 ml-4 tracking-widest">Fondo de Pantalla Personalizado (URL)</label>
                   <input type="text" value={haConfig.custom_bg_url} onChange={e => setHaConfig({...haConfig, custom_bg_url: e.target.value})} className="w-full glass bg-white/5 border border-white/10 rounded-3xl px-8 py-5 text-xs text-white" />
                </div>
             </div>

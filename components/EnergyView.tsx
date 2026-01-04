@@ -26,9 +26,13 @@ const EnergyView: React.FC = () => {
     setLoading(false);
   };
 
+  const getEntityData = (id?: string) => {
+    if (!id) return null;
+    return states.find(st => st.entity_id === id);
+  };
+
   const getVal = (id?: string) => {
-    if (!id) return 0;
-    const s = states.find(st => st.entity_id === id);
+    const s = getEntityData(id);
     return s ? parseFloat(s.state) || 0 : 0;
   };
 
@@ -38,32 +42,48 @@ const EnergyView: React.FC = () => {
   const gridCons = getVal(haConfig?.grid_consumption_entity);
   const gridExp = getVal(haConfig?.grid_export_entity);
   const cost = getVal(haConfig?.energy_cost_entity);
-  const car = getVal(haConfig?.car_battery_entity);
 
-  const metrics = [
+  // KPIs Principales
+  const mainMetrics = [
     { label: 'Instantánea Solar', val: solarNow, unit: 'W', color: 'text-yellow-400', border: 'border-yellow-500/20' },
     { label: 'Solar Hoy', val: solarDaily, unit: 'kWh', color: 'text-orange-400', border: 'border-orange-500/20' },
     { label: 'Solar Mes', val: solarMonthly, unit: 'kWh', color: 'text-orange-600', border: 'border-orange-500/10' },
     { label: 'Consumo Red', val: gridCons, unit: 'W', color: 'text-blue-400', border: 'border-blue-500/20' },
-    { label: 'Retornado', val: gridExp, unit: 'W', color: 'text-green-400', border: 'border-green-500/20' },
+    { label: 'Exportación', val: gridExp, unit: 'W', color: 'text-green-400', border: 'border-green-500/20' },
     { label: 'Precio Actual', val: cost, unit: '€', color: 'text-cyan-400', border: 'border-cyan-500/20' },
-    { label: 'Batería Coche', val: car, unit: '%', color: 'text-blue-600', border: 'border-blue-500/10' }
   ].filter(m => m.val !== 0);
+
+  // KPIs Adicionales Dinámicos (Permite ver los 11+ mencionados)
+  const extraMetrics = (haConfig?.energy_extra_entities || []).map(id => {
+    const s = getEntityData(id);
+    return {
+      label: s?.attributes?.friendly_name || id.split('.')[1],
+      val: parseFloat(s?.state) || 0,
+      unit: s?.attributes?.unit_of_measurement || '',
+      color: 'text-white/60',
+      border: 'border-white/5'
+    };
+  });
+
+  const allMetrics = [...mainMetrics, ...extraMetrics];
 
   return (
     <div className="space-y-10 pb-24 animate-in fade-in duration-700">
-       {/* Metrics Grid Flexible */}
-       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-          {metrics.map((m, i) => (
-            <div key={i} className={`glass p-6 rounded-[40px] border ${m.border} hover:bg-white/[0.02] transition-all flex flex-col justify-center`}>
-               <p className="text-[10px] text-white/30 uppercase font-black tracking-widest mb-2">{m.label}</p>
-               <p className={`text-3xl font-black tracking-tighter ${m.color}`}>{m.val.toFixed(m.unit === '€' ? 4 : 1)}<span className="text-[10px] ml-1 text-white/20 font-black">{m.unit}</span></p>
+       {/* Rejilla Adaptativa para TODAS las métricas (Principales + Extras) */}
+       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+          {allMetrics.map((m, i) => (
+            <div key={i} className={`glass p-6 rounded-[40px] border ${m.border} hover:bg-white/[0.05] transition-all flex flex-col justify-center min-h-[140px] shadow-lg`}>
+               <p className="text-[10px] text-white/20 uppercase font-black tracking-widest mb-2 line-clamp-1">{m.label}</p>
+               <p className={`text-2xl font-black tracking-tighter ${m.color}`}>
+                  {typeof m.val === 'number' ? m.val.toLocaleString('es-ES', { maximumFractionDigits: 2 }) : m.val}
+                  <span className="text-[9px] ml-1 text-white/10 font-black uppercase">{m.unit}</span>
+               </p>
             </div>
           ))}
        </div>
 
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 glass p-10 rounded-[60px] border border-white/10 h-[500px] relative overflow-hidden">
+          <div className="lg:col-span-2 glass p-10 rounded-[60px] border border-white/10 h-[500px] relative overflow-hidden shadow-2xl">
              <div className="mb-10 flex justify-between items-center">
                 <h4 className="text-[12px] font-black uppercase tracking-[0.4em] text-white/20">Matriz de Producción vs Consumo</h4>
                 <div className="flex gap-4">
@@ -85,14 +105,14 @@ const EnergyView: React.FC = () => {
              </ResponsiveContainer>
           </div>
 
-          <div className="space-y-8">
-             <div className="glass p-10 rounded-[50px] border border-white/10 h-full flex flex-col justify-between">
+          <div className="space-y-8 h-full">
+             <div className="glass p-10 rounded-[50px] border border-white/10 h-full flex flex-col justify-between shadow-2xl">
                 <div>
                    <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 mb-10">Optimización de Red</h4>
                    <div className="space-y-8">
                       <div className="flex justify-between items-end border-b border-white/5 pb-6">
                          <span className="text-xs font-bold text-white/40 uppercase">Eficiencia Solar</span>
-                         <span className="text-4xl font-black text-yellow-400">{(solarNow > 0 ? (solarNow / 5000 * 100).toFixed(0) : 0)}%</span>
+                         <span className="text-4xl font-black text-yellow-400">{(solarNow > 0 ? Math.min(100, (solarNow / 5000 * 100)).toFixed(0) : 0)}%</span>
                       </div>
                       <div className="flex justify-between items-end border-b border-white/5 pb-6">
                          <span className="text-xs font-bold text-white/40 uppercase">Neto Actual</span>
@@ -105,7 +125,7 @@ const EnergyView: React.FC = () => {
                 <div className="p-8 bg-blue-600/5 border border-blue-500/20 rounded-[40px] mt-10">
                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">Recomendación IA</p>
                    <p className="text-xs text-white/70 italic leading-relaxed">
-                      {solarNow > 2000 ? "Producción alta detectada. Es el momento óptimo para activar electrodomésticos de alto consumo." : "Producción limitada. Priorizando mantenimiento de carga en sistemas críticos."}
+                      {solarNow > 2000 ? "Producción alta detectada. Es el momento óptimo para activar electrodomésticos de alto consumo o cargar el vehículo." : "Producción limitada. Priorizando mantenimiento de carga en sistemas críticos."}
                    </p>
                 </div>
              </div>

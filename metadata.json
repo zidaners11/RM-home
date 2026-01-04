@@ -1,5 +1,5 @@
 {
-  "name": "Nexus Home Hub",
+  "name": "RM Home Hub",
   "description": "A high-end, AI-powered home automation dashboard integrating Home Assistant, Firefly III, Frigate, and Google Sheets with a celestial aesthetic.",
   "requestFramePermissions": [
     "camera",

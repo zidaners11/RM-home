@@ -64,19 +64,21 @@ const MapView: React.FC = () => {
               lng: parseFloat(h.attributes?.longitude),
               time: h.last_changed
             }))
-            .filter((h: any) => !isNaN(h.lat) && !isNaN(h.lng))
-            // Ordenar por tiempo para asegurar rastro correcto
+            .filter((h: any) => !isNaN(h.lat) && !isNaN(h.lng) && h.lat !== 0 && h.lng !== 0)
             .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
 
           let picture = s.attributes?.entity_picture 
             ? `${cfg.url.replace(/\/$/, '')}${s.attributes.entity_picture}` 
             : `https://i.pravatar.cc/150?u=${id}`;
 
+          const currentLat = parseFloat(s.attributes?.latitude);
+          const currentLng = parseFloat(s.attributes?.longitude);
+
           return {
             entity_id: id,
             name: s.attributes?.friendly_name || id.split('.')[1],
-            lat: parseFloat(s.attributes?.latitude) || (history.length > 0 ? history[history.length-1].lat : 40.4168),
-            lng: parseFloat(s.attributes?.longitude) || (history.length > 0 ? history[history.length-1].lng : -3.7038),
+            lat: !isNaN(currentLat) ? currentLat : (history.length > 0 ? history[history.length-1].lat : 40.4168),
+            lng: !isNaN(currentLng) ? currentLng : (history.length > 0 ? history[history.length-1].lng : -3.7038),
             lastSeen: s.last_changed ? new Date(s.last_changed).toLocaleTimeString() : '---',
             battery: s.attributes?.battery_level || 100,
             status: s.state || 'unknown',
@@ -111,7 +113,7 @@ const MapView: React.FC = () => {
               <div class="w-14 h-14 rounded-full border-2 bg-black p-0.5 overflow-hidden shadow-[0_0_30px_${p.color}88] transition-all duration-1000" style="border-color: ${p.color}">
                 <img src="${p.picture}" class="w-full h-full rounded-full object-cover" />
               </div>
-              <div class="px-3 py-1 rounded-lg mt-2 border border-white/10 shadow-2xl backdrop-blur-md" style="background-color: ${p.color}44">
+              <div class="px-3 py-1 rounded-lg mt-2 border border-white/10 shadow-2xl backdrop-blur-md" style="background-color: ${p.color}aa">
                 <span class="text-[9px] font-black text-white uppercase tracking-widest">${p.name}</span>
               </div>
             </div>
@@ -134,10 +136,12 @@ const MapView: React.FC = () => {
         if (!trailsRef.current[p.entity_id]) {
           trailsRef.current[p.entity_id] = L.polyline(pathPoints, {
             color: p.color,
-            weight: 3,
-            opacity: 0.5,
-            dashArray: '8, 12',
-            smoothFactor: 2
+            weight: 4,
+            opacity: 0.6,
+            dashArray: '10, 15',
+            smoothFactor: 1.5,
+            lineCap: 'round',
+            lineJoin: 'round'
           }).addTo(mapRef.current!);
         } else {
           trailsRef.current[p.entity_id].setLatLngs(pathPoints);
@@ -160,8 +164,6 @@ const MapView: React.FC = () => {
           {/* Radar Sweep Animation Layer */}
           <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden opacity-20">
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] bg-[conic-gradient(from_0deg,transparent_0deg,transparent_340deg,rgba(59,130,246,0.5)_360deg)] animate-[spin_4s_linear_infinite]" />
-             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full border border-blue-500/10 rounded-full scale-50" />
-             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full border border-blue-500/10 rounded-full scale-75" />
           </div>
 
           <div ref={mapContainerRef} className="w-full h-full z-0 grayscale-[0.8] contrast-[1.2] invert-[0.05]" />
@@ -173,7 +175,7 @@ const MapView: React.FC = () => {
                       <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_10px_#3b82f6]" />
                       <h3 className="text-[11px] font-black text-white uppercase tracking-[0.4em]">Sentinel Radar</h3>
                    </div>
-                   <span className="text-[8px] font-mono text-white/30 uppercase">72H_TRACE_ON</span>
+                   <span className="text-[8px] font-mono text-white/30 uppercase">72H_TRACE_SYNC</span>
                 </div>
 
                 <div className="space-y-4 max-h-[40vh] overflow-y-auto no-scrollbar">
@@ -185,14 +187,12 @@ const MapView: React.FC = () => {
                      >
                         <div className="relative">
                            <img src={p.picture} className="w-12 h-12 rounded-full object-cover border-2 shadow-lg" style={{ borderColor: p.color }} alt="" />
-                           {focusedId === p.entity_id && <div className="absolute -inset-1 rounded-full border border-white/30 animate-ping" />}
                         </div>
                         <div className="flex-1 overflow-hidden">
                            <p className="text-[10px] font-black uppercase text-white truncate tracking-tight">{p.name}</p>
                            <p className="text-[8px] font-bold uppercase tracking-widest mt-1" style={{ color: p.color }}>{p.status}</p>
                            <div className="flex items-center gap-2 mt-2">
                               <span className="text-[7px] font-mono text-white/20">{p.battery}% PWR</span>
-                              <span className="text-[7px] font-mono text-white/20">|</span>
                               <span className="text-[7px] font-mono text-white/20">{p.lastSeen}</span>
                            </div>
                         </div>
