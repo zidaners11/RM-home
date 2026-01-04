@@ -3,14 +3,16 @@ version: '3.8'
 
 services:
   nexus-hub:
-    build:
-      context: .
-      args:
-        - VITE_API_KEY=${GEMINI_API_KEY}
+    image: nexus_home_hub:latest
     container_name: nexus_home_hub
     ports:
       - "8080:80"
     restart: unless-stopped
+    volumes:
+      # CONFIGURACIÓN AUTOMÁTICA: 
+      # Crea un archivo 'config.json' en la misma carpeta que este docker-compose
+      # y se inyectará automáticamente en el Dashboard sin errores de red.
+      - ./config.json:/usr/share/nginx/html/config.json:ro
     environment:
       - NODE_ENV=production
       - API_KEY=${GEMINI_API_KEY}
