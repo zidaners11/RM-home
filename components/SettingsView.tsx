@@ -7,7 +7,7 @@ const SettingsView: React.FC = () => {
   type TabType = 'dashboard' | 'security' | 'energy' | 'vehicle' | 'radar' | 'finance' | 'core' | 'appearance';
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   
-  const [manualApiKey, setManualApiKey] = useState(localStorage.getItem('nexus_manual_api_key') || '');
+  // Se ha eliminado el estado manual de API Key para priorizar el uso del selector oficial y process.env.API_KEY.
   
   const INITIAL_HA_CONFIG: HomeAssistantConfig = {
     url: DEFAULT_HA_URL, 
@@ -85,11 +85,7 @@ const SettingsView: React.FC = () => {
   const handleSave = async () => {
     setStatus('saving');
     
-    if (manualApiKey) {
-      localStorage.setItem('nexus_manual_api_key', manualApiKey);
-    } else {
-      localStorage.removeItem('nexus_manual_api_key');
-    }
+    // Se ha eliminado la lógica de guardado manual de API Key para cumplir con las directrices del SDK.
 
     const username = localStorage.getItem('nexus_user') || 'guest';
     
@@ -172,22 +168,7 @@ const SettingsView: React.FC = () => {
                   <div className="space-y-2"><label className="text-[9px] uppercase font-black text-white/20 ml-4">Token Maestro</label><input type="password" value={haConfig.token} onChange={e => setHaConfig({...haConfig, token: e.target.value})} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white outline-none border border-white/5" /></div>
                </div>
                
-               <div className="bg-blue-600/5 p-8 rounded-[40px] border border-blue-500/20 space-y-4">
-                  <div className="flex items-center gap-4">
-                     <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                     </div>
-                     <h3 className="text-xs font-black uppercase text-white tracking-widest">Protocolo de Emergencia IA (Gemini)</h3>
-                  </div>
-                  <p className="text-[10px] text-white/40 uppercase tracking-widest leading-relaxed">Si estás usando Docker y la IA no funciona, introduce tu API_KEY aquí. Esto anulará el archivo .env y el Bridge de Docker.</p>
-                  <input 
-                    type="password" 
-                    value={manualApiKey} 
-                    onChange={e => setManualApiKey(e.target.value)} 
-                    placeholder="INTRODUCE GEMINI API_KEY AQUÍ"
-                    className="w-full bg-black/40 p-5 rounded-2xl text-xs text-blue-400 font-mono outline-none border border-blue-500/30 focus:border-blue-400" 
-                  />
-               </div>
+               {/* La gestión manual de API Key de Gemini se ha retirado para cumplir con las directrices de seguridad y automatización del SDK. Se utiliza el selector oficial disponible en el Dashboard. */}
             </div>
           )}
 

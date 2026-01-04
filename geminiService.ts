@@ -1,61 +1,36 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-/**
- * NEXUS API KEY BRIDGE
- * Intenta obtener la clave de múltiples fuentes para máxima compatibilidad en Docker.
- */
-const getApiKey = () => {
-  // 1. Prioridad: Ajustes manuales guardados por el usuario en la web
-  const manualKey = localStorage.getItem('nexus_manual_api_key');
-  if (manualKey) return manualKey;
-
-  // 2. Prioridad: Inyección dinámica de Docker (window.NEXUS_CONFIG)
-  const runtimeKey = (window as any).NEXUS_CONFIG?.API_KEY;
-  if (runtimeKey) return runtimeKey;
-
-  // 3. Prioridad: Variables de entorno de Vite (Compilación)
-  // @ts-ignore
-  const viteKey = import.meta.env?.VITE_API_KEY;
-  if (viteKey) return viteKey;
-
-  // 4. Prioridad: Proceso de node (Fallback)
-  const buildTimeKey = process.env.API_KEY;
-  
-  return buildTimeKey;
-};
+// Se utiliza exclusivamente process.env.API_KEY para la inicialización según las directrices.
+// El cliente se instancia dentro de cada función para garantizar el uso de la clave más reciente (p. ej., tras un cambio en el selector).
 
 export async function getGlobalNexusStatus(homeData: any) {
-  const apiKey = getApiKey();
+  const apiKey = process.env.API_KEY;
   
-  if (!apiKey || apiKey === "undefined" || apiKey.length < 10) {
-    console.warn("[NEXUS AI] API_KEY no configurada o inválida.");
+  if (!apiKey || apiKey === "undefined") {
     return { 
-      text: "ERROR DE PROTOCOLO: El Núcleo Estratégico no tiene una API_KEY válida. Revisa la configuración del contenedor o los Ajustes de la web.", 
-      sources: [] 
+      text: "ERROR: No se ha detectado una API Key activa. Por favor, selecciona una clave de un proyecto con facturación activa para habilitar el núcleo estratégico.", 
+      sources: [],
+      needsKey: true 
     };
   }
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const systemInstruction = `Eres el RM Home Strategic Core. 
-    Tu misión es proporcionar un informe ejecutivo de 360 grados.
-    Debes incluir:
-    1. Un resumen del estado del hogar (alarmas, alertas, energía solar).
-    2. Las noticias más importantes del día en España.
-    3. Resultados o noticias clave de La Liga española de fútbol.
+    // Usamos Flash para el estado general por mayor velocidad
+    const modelName = 'gemini-3-flash-preview'; 
     
-    Usa un tono sofisticado, futurista y muy conciso (máximo 120 palabras).
-    Estructura la respuesta con breves titulares.`;
+    const systemInstruction = `Eres RM Home Strategic Core, una IA integrada en un entorno de hogar inteligente con estética de nebulosa espacial.
+    Analiza los datos y responde con autoridad, elegancia y brevedad (máx 100 palabras).
+    Resumen de estado + 1 dato clave de La Liga o noticias de España.`;
 
-    const prompt = `Analiza los siguientes datos internos: ${JSON.stringify(homeData)}.
-    Utiliza tus herramientas de búsqueda para obtener las noticias de hoy en España y la actualidad de La Liga.`;
+    const prompt = `Telemetría actual: ${JSON.stringify(homeData)}. Escanea noticias actuales y fútbol en España.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: modelName,
       contents: prompt,
       config: {
-        systemInstruction: systemInstruction,
+        systemInstruction,
         tools: [{ googleSearch: {} }],
         temperature: 0.7,
       },
@@ -64,67 +39,74 @@ export async function getGlobalNexusStatus(homeData: any) {
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
     return {
-      text: response.text || "Enlace establecido, pero la respuesta ha sido interceptada.",
-      sources: sources
+      text: response.text || "Enlace establecido. Sistemas nominales.",
+      sources: sources,
+      needsKey: false
     };
   } catch (error: any) {
-    console.error("RM Home AI Error:", error);
-    let errorMsg = "Protocolos de comunicación externa limitados.";
-    if (error.message?.includes('API_KEY_INVALID')) errorMsg = "ERROR: La API_KEY proporcionada no es válida.";
-    if (error.message?.includes('quota')) errorMsg = "ALERTA: Cuota de IA agotada para este minuto.";
+    console.error("RM Home AI Error Details:", error);
+    
+    let userMessage = "Error de enlace con el núcleo de IA.";
+    const isAuthError = error.message?.includes('API_KEY') || 
+                       error.message?.includes('403') || 
+                       error.message?.includes('Requested entity was not found');
+    
+    if (error.message?.includes('404') || error.message?.includes('not found')) {
+      userMessage = "El modelo solicitado no está disponible en tu región o clave.";
+    } else if (error.message?.includes('API_KEY_INVALID')) {
+      userMessage = "La API Key proporcionada es inválida o ha expirado.";
+    } else if (error.message?.includes('quota')) {
+      userMessage = "Límite de peticiones alcanzado. Reintentando en 60s...";
+    } else {
+      userMessage = `Interrupción de protocolo: ${error.message.substring(0, 50)}...`;
+    }
     
     return { 
-      text: errorMsg,
-      sources: [] 
+      text: userMessage, 
+      sources: [],
+      needsKey: isAuthError
     };
   }
 }
 
 export async function getHomeInsights(data: any) {
-  const apiKey = getApiKey();
-  if (!apiKey) return "Sistemas desconectados. Error de autenticación.";
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return "Sistema en modo offline.";
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const systemInstruction = `Actúa como el cerebro de RM Home. 
-    Analiza la telemetría actual y la configuración personalizada del usuario.
-    Sé carismático, sofisticado y breve (máximo 60 palabras).`;
-
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Datos de telemetría: ${JSON.stringify(data)}`,
+      contents: `Analiza esta telemetría y da un consejo breve: ${JSON.stringify(data)}`,
       config: {
-        systemInstruction: systemInstruction,
+        systemInstruction: "Eres el cerebro táctico de una base espacial. Sé breve y carismático.",
         temperature: 0.8,
       },
     });
-
     return response.text;
   } catch (error) {
-    return "Sistemas de análisis en recalibración.";
+    return "Analizando flujos de datos...";
   }
 }
 
+// Fix: Implementación y exportación de getFinanceInsights para corregir el error de importación en FinanceView.tsx
 export async function getFinanceInsights(financeData: any) {
-  const apiKey = getApiKey();
+  const apiKey = process.env.API_KEY;
   if (!apiKey) return "Análisis financiero offline.";
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const systemInstruction = `Actúa como el RM Home Financial Advisor.
-    Analiza datos financieros con precisión. Sé extremadamente conciso (máximo 80 palabras).`;
-
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Analiza este informe: ${JSON.stringify(financeData)}`,
+      contents: `Analiza estos datos financieros: ${JSON.stringify(financeData)}`,
       config: {
-        systemInstruction: systemInstruction,
+        systemInstruction: "Eres un analista financiero avanzado de la estación RM Home. Proporciona una visión táctica sobre los presupuestos, gastos y ahorros. Sé breve, directo y futurista.",
         temperature: 0.7,
       },
     });
-
     return response.text;
   } catch (error) {
-    return "Error al procesar flujos de capital.";
+    console.error("Finance AI Insight Error:", error);
+    return "Error en la matriz de análisis financiero.";
   }
 }
