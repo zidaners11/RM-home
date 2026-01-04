@@ -275,7 +275,7 @@ const MapView: React.FC = () => {
                    <span>Vector Movimiento</span>
                 </div>
                 <div className="w-px h-4 bg-white/10" />
-                <span className="text-blue-400">Escaneo: {people.reduce((acc, p) => acc + p.history.length, 0)} Puntos</span>
+                <span className="text-blue-400">Escaneo: {people.reduce((acc, p) => acc +  (p.history?.length || 0), 0)} Puntos</span>
              </div>
           </div>
        </div>
