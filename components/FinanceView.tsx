@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { FireflyConfig } from '../types';
+import { FireflyConfig, HomeAssistantConfig } from '../types';
 import { fetchFireflyTransactions, fetchFinanceFromSheets } from '../fireflyService';
 import { getFinanceInsights } from '../geminiService';
 
 const FinanceView: React.FC = () => {
-  const [config, setConfig] = useState<FireflyConfig | null>(null);
+  const [haConfig, setHaConfig] = useState<HomeAssistantConfig | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [budgets, setBudgets] = useState<any[]>([]);
   const [summaries, setSummaries] = useState<any[]>([]);
@@ -17,15 +17,27 @@ const FinanceView: React.FC = () => {
   const monthsOrder = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
   useEffect(() => {
-    const saved = localStorage.getItem('nexus_firefly_config');
+    loadConfig();
+    window.addEventListener('nexus_config_updated', loadConfig);
+    return () => window.removeEventListener('nexus_config_updated', loadConfig);
+  }, []);
+
+  const loadConfig = () => {
+    const saved = localStorage.getItem('nexus_ha_config');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      setConfig(parsed);
-      refreshData(parsed);
+      try {
+        const parsed: HomeAssistantConfig = JSON.parse(saved);
+        setHaConfig(parsed);
+        if (parsed.finance) {
+          refreshData(parsed.finance);
+        } else {
+          setLoading(false);
+        }
+      } catch (e) { console.error(e); setLoading(false); }
     } else {
       setLoading(false);
     }
-  }, []);
+  };
 
   const getCycleMonth = () => {
     const now = new Date();
@@ -56,12 +68,11 @@ const FinanceView: React.FC = () => {
   };
 
   const handleRefreshManual = () => {
-    if (config) refreshData(config);
+    if (haConfig?.finance) refreshData(haConfig.finance);
   };
 
   const currentCycle = getCycleMonth();
   
-  // Ordenar presupuestos por porcentaje de consumo (de mayor a menor)
   const currentBudgets = budgets
     .filter(b => b.month === currentCycle)
     .sort((a, b) => {
@@ -111,7 +122,6 @@ const FinanceView: React.FC = () => {
     return 'text-white/60 border-white/10 bg-white/5';
   };
 
-  // Lógica de agrupación por fechas
   const groupedTransactions = transactions.reduce((groups: { [key: string]: any[] }, tx) => {
     const date = tx.attributes.transactions[0].date;
     if (!groups[date]) groups[date] = [];
@@ -128,10 +138,15 @@ const FinanceView: React.FC = () => {
     </div>
   );
 
+  if (!haConfig?.finance?.sheets_csv_url) return (
+    <div className="h-[60vh] flex items-center justify-center glass rounded-[40px] text-white/20 uppercase font-black tracking-widest text-xs border border-dashed border-white/10">
+      Enlace de Google Sheets no configurado. Abre Ajustes.
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-6 pb-24">
        
-       {/* Cabecera de Mando */}
        <div className="flex justify-between items-center shrink-0 glass px-8 py-5 rounded-[32px] border border-white/10">
           <div className="flex items-center gap-6">
              <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/40">
@@ -153,7 +168,6 @@ const FinanceView: React.FC = () => {
           </button>
        </div>
 
-       {/* KPIs de Alto Nivel */}
        {currentSummary && (
          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
             {[
@@ -175,7 +189,6 @@ const FinanceView: React.FC = () => {
          </div>
        )}
 
-       {/* Panel de IA */}
        <div className={`glass rounded-[32px] border transition-all duration-700 shrink-0 ${aiInsight ? 'border-blue-500/40 bg-blue-500/5' : 'border-white/5'}`}>
           <div className="px-8 py-4 flex items-center justify-between gap-8">
              <div className="flex items-center gap-5 shrink-0">
@@ -203,8 +216,6 @@ const FinanceView: React.FC = () => {
        </div>
 
        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          
-          {/* Historial de Transacciones AGRUPADO */}
           <div className="lg:col-span-3 glass rounded-[40px] p-8 border border-white/10 flex flex-col min-h-[500px]">
              <div className="flex justify-between items-center mb-8">
                 <h2 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Historial de Flujos</h2>
@@ -214,11 +225,7 @@ const FinanceView: React.FC = () => {
              <div className="space-y-12">
                 {sortedDates.map((date) => {
                   const dayTxs = groupedTransactions[date];
-                  // Sumamos todos los movimientos del día
                   const daySum = dayTxs.reduce((acc, curr) => acc + parseFloat(curr.attributes.transactions[0].amount), 0);
-                  
-                  // Definimos color y signo basado en si es neto gasto o neto ingreso
-                  // Basado en el feedback: Gastos (Rojo/Positivo en origen) -> Mostrar Negativo. Ingresos (Verde/Negativo en origen) -> Mostrar Positivo.
                   const isNetExpense = daySum > 0;
                   
                   return (
@@ -237,7 +244,7 @@ const FinanceView: React.FC = () => {
                         {dayTxs.map((tx, i) => {
                           const d = tx.attributes.transactions[0];
                           const val = parseFloat(d.amount);
-                          const isExpense = val > 0; // Suponiendo que en tu CSV los gastos vienen positivos y los ingresos negativos
+                          const isExpense = val > 0;
                           return (
                             <div key={i} className="flex justify-between items-center p-5 bg-white/[0.02] hover:bg-white/[0.05] rounded-[24px] border border-white/5 transition-all group">
                                <div className="flex items-center gap-5">
@@ -264,7 +271,6 @@ const FinanceView: React.FC = () => {
              </div>
           </div>
 
-          {/* Presupuestos y Límites (ORDENADOS POR CONSUMO) */}
           <div className="lg:col-span-2 glass rounded-[40px] p-8 border border-white/10 flex flex-col h-fit">
              <div className="flex items-center gap-4 mb-8">
                 <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-400 border border-blue-500/20">

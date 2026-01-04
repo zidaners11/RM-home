@@ -23,7 +23,6 @@ export interface UserLocation {
   history?: { lat: number; lng: number; time: string }[];
 }
 
-// Added SensorData interface to fix import errors in constants.ts
 export interface SensorData {
   id: string;
   name: string;
@@ -34,7 +33,6 @@ export interface SensorData {
   trend?: 'up' | 'down' | 'stable';
 }
 
-// Added WeatherData interface to fix inheritance errors in constants.ts and WeatherView.tsx
 export interface WeatherData {
   location: string;
   temp: number;
@@ -49,6 +47,7 @@ export interface VehicleConfig {
   range_entity: string;
   odometer_entity: string;
   fuel_entity: string;
+  fuel_range_entity: string;
   service_km_entity: string;
   saving_entity: string;
   electric_use_entity: string;
@@ -61,20 +60,26 @@ export interface VehicleConfig {
   status_entity: string;
   lock_entity: string;
   climate_entity: string;
-  tire_pressure_fl_entity: string;
-  tire_pressure_fr_entity: string;
-  tire_pressure_rl_entity: string;
-  tire_pressure_rr_entity: string;
   windows_entity: string;
   last_update_entity: string;
   image_url: string;
+  refresh_script?: string;
   extra_entities?: string[];
+}
+
+export interface FireflyConfig {
+  url: string;
+  token: string;
+  use_sheets_mirror?: boolean;
+  sheets_csv_url?: string;
+  main_account_id?: string;
+  proxy_url?: string;
 }
 
 export interface HomeAssistantConfig {
   url: string;
   token: string;
-  pinnedEntities: string[]; // Deprecado a favor de dashboardWidgets
+  pinnedEntities: string[];
   dashboardWidgets: WidgetConfig[];
   solar_production_entity?: string;
   solar_daily_entity?: string;
@@ -90,21 +95,13 @@ export interface HomeAssistantConfig {
   tracked_people: string[];
   alarm_entity?: string;
   vehicle: VehicleConfig;
+  finance: FireflyConfig; // Añadido para persistencia en nube
   custom_bg_url?: string; 
   weather_nodes: {
     torrejon: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
     navalacruz: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
     santibanez: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
   };
-}
-
-export interface FireflyConfig {
-  url: string;
-  token: string;
-  use_sheets_mirror?: boolean;
-  sheets_csv_url?: string;
-  main_account_id?: string;
-  proxy_url?: string;
 }
 
 export enum AppSection {

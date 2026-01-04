@@ -25,12 +25,17 @@ const SettingsView: React.FC = () => {
     energy_extra_entities: [],
     car_battery_entity: '',
     custom_bg_url: 'https://i.redd.it/6qq8lk9qjqp21.jpg',
+    finance: {
+      url: '',
+      token: '',
+      use_sheets_mirror: true,
+      sheets_csv_url: ''
+    },
     vehicle: { 
-      battery_entity: '', range_entity: '', odometer_entity: '', fuel_entity: '', service_km_entity: '', saving_entity: '',
+      battery_entity: '', range_entity: '', odometer_entity: '', fuel_entity: '', fuel_range_entity: '', service_km_entity: '', saving_entity: '',
       electric_use_entity: '', avg_consumption_entity: '', time_to_charge_entity: '', charge_limit_entity: '', plug_status_entity: '',
       km_today_entity: '', charging_speed_entity: '', status_entity: '', lock_entity: '', climate_entity: '',
-      tire_pressure_fl_entity: '', tire_pressure_fr_entity: '', tire_pressure_rl_entity: '', tire_pressure_rr_entity: '',
-      windows_entity: '', last_update_entity: '', image_url: '', extra_entities: []
+      windows_entity: '', last_update_entity: '', image_url: '', refresh_script: '', extra_entities: []
     },
     weather_nodes: { 
       torrejon: {id: 'tj', name: 'TJ'}, 
@@ -40,9 +45,6 @@ const SettingsView: React.FC = () => {
   };
 
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig>(INITIAL_HA_CONFIG);
-  const [fireflyConfig, setFireflyConfig] = useState<FireflyConfig>({
-    url: '', token: '', use_sheets_mirror: true, sheets_csv_url: ''
-  });
   const [haStates, setHaStates] = useState<any[]>([]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
@@ -54,13 +56,13 @@ const SettingsView: React.FC = () => {
 
   const loadSettings = () => {
     const savedHA = localStorage.getItem('nexus_ha_config');
-    const savedFF = localStorage.getItem('nexus_firefly_config');
     if (savedHA) {
       try {
         const parsed = JSON.parse(savedHA);
         setHaConfig({
           ...INITIAL_HA_CONFIG,
           ...parsed,
+          finance: { ...INITIAL_HA_CONFIG.finance, ...(parsed.finance || {}) },
           vehicle: { ...INITIAL_HA_CONFIG.vehicle, ...(parsed.vehicle || {}) },
           weather_nodes: { ...INITIAL_HA_CONFIG.weather_nodes, ...(parsed.weather_nodes || {}) }
         });
@@ -69,7 +71,6 @@ const SettingsView: React.FC = () => {
     } else {
       loadHAEntities(DEFAULT_HA_URL, DEFAULT_HA_TOKEN);
     }
-    if (savedFF) setFireflyConfig(JSON.parse(savedFF));
   };
 
   const loadHAEntities = async (url: string, token: string) => {
@@ -84,12 +85,11 @@ const SettingsView: React.FC = () => {
     const username = localStorage.getItem('nexus_user') || 'guest';
     
     try {
-      // PERSISTENCIA TOTAL: Inyectamos el JSON en Home Assistant como un sensor
+      // Ahora enviamos haConfig que ya contiene la propiedad .finance con los datos de Google Sheets
       const syncSuccess = await saveMasterConfig(username, haConfig, haConfig.url, haConfig.token);
       
       if (syncSuccess) {
         localStorage.setItem('nexus_ha_config', JSON.stringify(haConfig));
-        localStorage.setItem('nexus_firefly_config', JSON.stringify(fireflyConfig));
         setStatus('success');
         setTimeout(() => window.location.reload(), 1500);
       } else {
@@ -101,13 +101,15 @@ const SettingsView: React.FC = () => {
     }
   };
 
-  const EntitySelector = ({ label, value, onChange, multi = false }: any) => {
+  const EntitySelector = ({ label, value, onChange, multi = false, filterPrefix = '' }: any) => {
     const [search, setSearch] = useState('');
     const [isOpen, setIsOpen] = useState(false);
-    const filtered = (haStates || []).filter(s => 
-      s.entity_id.toLowerCase().includes(search.toLowerCase()) ||
-      (s.attributes.friendly_name || '').toLowerCase().includes(search.toLowerCase())
-    ).slice(0, 40);
+    const filtered = (haStates || []).filter(s => {
+      const matchesSearch = s.entity_id.toLowerCase().includes(search.toLowerCase()) ||
+                          (s.attributes.friendly_name || '').toLowerCase().includes(search.toLowerCase());
+      const matchesPrefix = filterPrefix ? s.entity_id.startsWith(filterPrefix) : true;
+      return matchesSearch && matchesPrefix;
+    }).slice(0, 40);
 
     return (
       <div className="space-y-1 relative">
@@ -178,21 +180,22 @@ const SettingsView: React.FC = () => {
                <EntitySelector label="Consumo Red" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} />
                <EntitySelector label="Exportación Red" value={haConfig.grid_export_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_export_entity: v})} />
                <EntitySelector label="Precio Luz" value={haConfig.energy_cost_entity} onChange={(v:any) => setHaConfig({...haConfig, energy_cost_entity: v})} />
-               <div className="md:col-span-2 lg:col-span-3 pt-4 border-t border-white/5"><EntitySelector label="KPIs Extras Energía" value={haConfig.energy_extra_entities} onChange={(v:any) => setHaConfig({...haConfig, energy_extra_entities: v})} multi={true} /></div>
             </div>
           )}
 
           {activeTab === 'vehicle' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                <EntitySelector label="Batería (%)" value={haConfig.vehicle.battery_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, battery_entity: v}})} />
-               <EntitySelector label="Autonomía" value={haConfig.vehicle.range_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, range_entity: v}})} />
+               <EntitySelector label="Autonomía EV" value={haConfig.vehicle.range_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, range_entity: v}})} />
+               <EntitySelector label="Autonomía Gasolina" value={haConfig.vehicle.fuel_range_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, fuel_range_entity: v}})} />
+               <EntitySelector label="Gasolina (L)" value={haConfig.vehicle.fuel_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, fuel_entity: v}})} />
                <EntitySelector label="Odómetro" value={haConfig.vehicle.odometer_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, odometer_entity: v}})} />
-               <EntitySelector label="Consumo Medio" value={haConfig.vehicle.avg_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, avg_consumption_entity: v}})} />
-               <EntitySelector label="Ahorro" value={haConfig.vehicle.saving_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, saving_entity: v}})} />
                <EntitySelector label="Estado (Parked/Charging)" value={haConfig.vehicle.status_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, status_entity: v}})} />
-               <EntitySelector label="Potencia Carga" value={haConfig.vehicle.charging_speed_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, charging_speed_entity: v}})} />
-               <EntitySelector label="Última Sincro" value={haConfig.vehicle.last_update_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, last_update_entity: v}})} />
-               <div className="md:col-span-2 lg:col-span-3"><EntitySelector label="Sensores Extras Coche" value={haConfig.vehicle.extra_entities} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, extra_entities: v}})} multi={true} /></div>
+               <EntitySelector label="Cerraduras" value={haConfig.vehicle.lock_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, lock_entity: v}})} />
+               <EntitySelector label="Ventanas" value={haConfig.vehicle.windows_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, windows_entity: v}})} />
+               <EntitySelector label="Climatización" value={haConfig.vehicle.climate_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, climate_entity: v}})} />
+               <EntitySelector label="Última Actualización" value={haConfig.vehicle.last_update_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, last_update_entity: v}})} />
+               <EntitySelector label="Script de Actualización" filterPrefix="script." value={haConfig.vehicle.refresh_script} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, refresh_script: v}})} />
                <div className="md:col-span-2 lg:col-span-3 space-y-2"><label className="text-[9px] uppercase font-black text-white/20 ml-4">URL Imagen Coche</label><input value={haConfig.vehicle.image_url} onChange={e => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, image_url: e.target.value}})} className="w-full bg-white/5 p-4 rounded-2xl text-xs" /></div>
             </div>
           )}
@@ -211,8 +214,32 @@ const SettingsView: React.FC = () => {
 
           {activeTab === 'finance' && (
             <div className="space-y-6">
-               <div className="flex items-center gap-3"><input type="checkbox" checked={fireflyConfig.use_sheets_mirror} onChange={e => setFireflyConfig({...fireflyConfig, use_sheets_mirror: e.target.checked})} /><label className="text-[10px] font-black uppercase text-white">Usar Google Sheets Mirror</label></div>
-               <input value={fireflyConfig.sheets_csv_url} onChange={e => setFireflyConfig({...fireflyConfig, sheets_csv_url: e.target.value})} placeholder="URL CSV de Google Sheets" className="w-full bg-white/5 p-4 rounded-2xl text-xs" />
+               <div className="flex items-center gap-3">
+                 <input 
+                   type="checkbox" 
+                   checked={haConfig.finance.use_sheets_mirror} 
+                   onChange={e => setHaConfig({...haConfig, finance: {...haConfig.finance, use_sheets_mirror: e.target.checked}})} 
+                 />
+                 <label className="text-[10px] font-black uppercase text-white">Usar Google Sheets Mirror</label>
+               </div>
+               <div className="space-y-2">
+                 <label className="text-[9px] uppercase font-black text-white/20 ml-4">URL CSV de Google Sheets</label>
+                 <input 
+                   value={haConfig.finance.sheets_csv_url} 
+                   onChange={e => setHaConfig({...haConfig, finance: {...haConfig.finance, sheets_csv_url: e.target.value}})} 
+                   placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv" 
+                   className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white" 
+                 />
+               </div>
+               <div className="space-y-2">
+                 <label className="text-[9px] uppercase font-black text-white/20 ml-4">Token Firefly III (Opcional)</label>
+                 <input 
+                   type="password"
+                   value={haConfig.finance.token} 
+                   onChange={e => setHaConfig({...haConfig, finance: {...haConfig.finance, token: e.target.value}})} 
+                   className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white" 
+                 />
+               </div>
             </div>
           )}
 
