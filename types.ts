@@ -23,6 +23,7 @@ export interface UserLocation {
   history?: { lat: number; lng: number; time: string }[];
 }
 
+// Added missing SensorData interface for dashboard metrics
 export interface SensorData {
   id: string;
   name: string;
@@ -33,6 +34,7 @@ export interface SensorData {
   trend?: 'up' | 'down' | 'stable';
 }
 
+// Added missing WeatherData interface for climatic nodes
 export interface WeatherData {
   location: string;
   temp: number;
@@ -42,11 +44,23 @@ export interface WeatherData {
   wind: number;
 }
 
+// Added missing FireflyConfig interface for financial synchronization
+export interface FireflyConfig {
+  use_sheets_mirror?: boolean;
+  sheets_csv_url?: string;
+  url?: string;
+  token?: string;
+  main_account_id?: string;
+  proxy_url?: string;
+}
+
 export interface VehicleConfig {
   battery_entity: string;
   range_entity: string;
   odometer_entity: string;
   fuel_entity: string;
+  fuel_unit: 'liters' | 'percentage'; // Nueva propiedad
+  tank_capacity: number; // Nueva propiedad
   fuel_range_entity: string;
   service_km_entity: string;
   saving_entity: string;
@@ -65,15 +79,8 @@ export interface VehicleConfig {
   image_url: string;
   refresh_script?: string;
   extra_entities?: string[];
-}
-
-export interface FireflyConfig {
-  url: string;
-  token: string;
-  use_sheets_mirror?: boolean;
-  sheets_csv_url?: string;
-  main_account_id?: string;
-  proxy_url?: string;
+  tracker_entity?: string; 
+  user_entity?: string; 
 }
 
 export interface HomeAssistantConfig {
@@ -95,13 +102,9 @@ export interface HomeAssistantConfig {
   tracked_people: string[];
   alarm_entity?: string;
   vehicle: VehicleConfig;
-  finance: FireflyConfig; 
+  finance: FireflyConfig; // Use FireflyConfig instead of any
   custom_bg_url?: string; 
-  weather_nodes: {
-    torrejon: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
-    navalacruz: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
-    santibanez: { id: string, name: string; temp_entity?: string; humidity_entity?: string; wind_entity?: string; camera_entity?: string };
-  };
+  weather_nodes: any;
 }
 
 export enum AppSection {

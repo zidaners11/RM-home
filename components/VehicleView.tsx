@@ -1,46 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
-import { fetchHAStates, callHAService } from '../homeAssistantService';
+import React, { useState, useEffect, useRef } from 'react';
+import { fetchHAStates, callHAService, fetchHAHistory } from '../homeAssistantService';
 import { HomeAssistantConfig } from '../types';
+import L from 'leaflet';
 
-const formatNexusNum = (val: any) => {
-  if (typeof val === 'string' && (val.includes('-') || val.includes(':') || val.length > 12)) {
-    return val; // Es probable que sea una fecha o un ID largo, no formatear como número
-  }
+const formatKm = (val: any) => {
   const n = parseFloat(val);
-  if (isNaN(n) || !isFinite(n)) return val;
-  
-  // Evitar formatear años o IDs numéricos cortos que no tienen sentido con decimales
-  if (Number.isInteger(n) && (n > 1900 && n < 2100)) return val;
-
-  return new Intl.NumberFormat('es-ES', { 
-    minimumFractionDigits: 2, 
-    maximumFractionDigits: 2 
-  }).format(n);
-};
-
-const formatAlarmState = (state: string) => {
-  const s = (state || '').toUpperCase();
-  if (s === 'ALARM_NOT_ACTIVATED' || s === 'OFF' || s === 'DISARMED') return 'DESACTIVADA';
-  if (s === 'ALARM_ACTIVATED' || s === 'ON' || s === 'ARMED') return 'ACTIVADA';
-  return s;
-};
-
-const formatSyncDate = (dateStr: string) => {
-  if (!dateStr || dateStr === '---') return '---';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toLocaleString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  } catch (e) {
-    return dateStr;
-  }
+  if (isNaN(n)) return val;
+  return new Intl.NumberFormat('es-ES').format(Math.floor(n));
 };
 
 const VehicleView: React.FC = () => {
@@ -48,40 +15,43 @@ const VehicleView: React.FC = () => {
   const [config, setConfig] = useState<HomeAssistantConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<{ car?: L.Marker }>({});
+  const trailRef = useRef<L.Polyline | null>(null);
 
-  useEffect(() => {
+  const loadLocalConfig = () => {
     const saved = localStorage.getItem('nexus_ha_config');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         setConfig(parsed);
         refreshData(parsed);
-        const interval = setInterval(() => refreshData(parsed), 30000);
-        return () => clearInterval(interval);
-      } catch (e) { console.error(e); setLoading(false); }
-    } else {
-      setLoading(false);
-    }
+      } catch (e) { setLoading(false); }
+    } else { setLoading(false); }
+  };
+
+  useEffect(() => {
+    loadLocalConfig();
   }, []);
 
   const refreshData = async (cfg: HomeAssistantConfig) => {
+    setIsRefreshing(true);
     try {
       const data = await fetchHAStates(cfg.url, cfg.token);
       if (data) setStates(data);
-    } catch (e) { } finally { setLoading(false); }
-  };
+      
+      if (cfg.vehicle.tracker_entity) {
+        const hist = await fetchHAHistory(cfg.url, cfg.token, cfg.vehicle.tracker_entity, 24);
+        setHistory(hist || []);
+      }
 
-  const handleManualRefresh = async () => {
-    if (!config || !config.vehicle.refresh_script) return;
-    setIsRefreshing(true);
-    try {
-      const [domain, service] = config.vehicle.refresh_script.split('.');
-      await callHAService(config.url, config.token, domain || 'script', service, {});
-      setTimeout(() => {
-        refreshData(config);
-        setIsRefreshing(false);
-      }, 3000);
-    } catch (e) {
+      if (cfg.vehicle.refresh_script) {
+        await callHAService(cfg.url, cfg.token, 'script', cfg.vehicle.refresh_script.replace('script.', ''), {});
+      }
+    } catch (e) { } finally { 
+      setLoading(false); 
       setIsRefreshing(false);
     }
   };
@@ -96,127 +66,221 @@ const VehicleView: React.FC = () => {
     return s?.state || fallback;
   };
 
-  const getFriendlyName = (entityId: string) => {
-    const s = getEntityData(entityId);
-    return s?.attributes?.friendly_name || entityId.split('.')[1].replace(/_/g, ' ');
-  };
+  useEffect(() => {
+    if (!config || loading || !mapContainerRef.current) return;
 
-  const getUnit = (entityId: string) => {
-    const s = getEntityData(entityId);
-    return s?.attributes?.unit_of_measurement || '';
-  };
+    if (!mapRef.current) {
+      mapRef.current = L.map(mapContainerRef.current, {
+        zoomControl: false,
+        attributionControl: false,
+        preferCanvas: true,
+        background: '#000000'
+      }).setView([40.4168, -3.7038], 15);
 
-  if (loading) {
-    return (
-      <div className="h-[60vh] flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-2 border-white/5 border-t-blue-500 rounded-full animate-spin mb-4" />
-        <p className="text-blue-400 font-black text-[9px] uppercase tracking-[0.4em] animate-pulse">Sincronizando Telemetría Lynk&co...</p>
-      </div>
-    );
-  }
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 20
+      }).addTo(mapRef.current);
+    }
 
-  if (!config) return (
-    <div className="h-[60vh] flex items-center justify-center glass rounded-[40px] text-white/20 uppercase font-black tracking-widest text-xs border border-dashed border-white/10">
-      Telemetría de Vehículo no configurada. Abre Ajustes.
+    const updateMap = () => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize();
+        
+        const carTracker = getEntityData(config.vehicle.tracker_entity);
+        const carLat = parseFloat(carTracker?.attributes?.latitude || '0');
+        const carLng = parseFloat(carTracker?.attributes?.longitude || '0');
+
+        const pathPoints: [number, number][] = history
+          .map((h: any) => {
+            const lat = parseFloat(h.attributes?.latitude);
+            const lng = parseFloat(h.attributes?.longitude);
+            return (isNaN(lat) || isNaN(lng)) ? null : [lat, lng] as [number, number];
+          })
+          .filter(Boolean) as [number, number][];
+
+        if (pathPoints.length > 1) {
+          if (!trailRef.current) {
+            trailRef.current = L.polyline(pathPoints, {
+              color: '#3b82f6',
+              weight: 3,
+              opacity: 0.6,
+              dashArray: '5, 10'
+            }).addTo(mapRef.current);
+          } else {
+            trailRef.current.setLatLngs(pathPoints);
+          }
+        }
+
+        if (carLat && carLng) {
+          const pos: [number, number] = [carLat, carLng];
+          if (!markersRef.current.car) {
+            markersRef.current.car = L.marker(pos, {
+              icon: L.divIcon({
+                className: 'nexus-marker',
+                html: `
+                  <div class="relative flex flex-col items-center">
+                    <div class="w-14 h-14 rounded-full border-4 bg-black flex items-center justify-center shadow-[0_0_35px_#3b82f6]" style="border-color: #3b82f6">
+                      <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10 M16 16h3M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    </div>
+                    <div class="absolute -bottom-1 w-4 h-4 bg-blue-500 border-2 border-black rounded-full shadow-lg"></div>
+                  </div>`,
+                iconSize: [56, 56],
+                iconAnchor: [28, 50]
+              })
+            }).addTo(mapRef.current);
+          } else {
+            markersRef.current.car.setLatLng(pos);
+          }
+          mapRef.current.flyTo(pos, 16, { animate: true });
+        }
+      }
+    };
+
+    const timer = setTimeout(updateMap, 500);
+    return () => clearTimeout(timer);
+  }, [loading, states, config, history]);
+
+  if (loading) return (
+    <div className="h-full flex flex-col items-center justify-center gap-4">
+      <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <p className="text-[9px] font-black uppercase text-blue-400 tracking-widest italic">Sincronizando Lynx OS...</p>
     </div>
   );
 
-  const car = config.vehicle;
-  const batteryRaw = parseFloat(getVal(car.battery_entity, '0'));
-  const battery = isNaN(batteryRaw) ? 0 : batteryRaw;
-  const status = getVal(car.status_entity, 'Parked');
-  const isCharging = status.toLowerCase().includes('charge');
-
-  const circumference = 2 * Math.PI * 45;
-  const offset = circumference - (battery / 100) * circumference;
-
-  const primaryKPIs = [
-    { label: 'Autonomía EV', val: getVal(car.range_entity), unit: 'km', color: 'text-cyan-400' },
-    { label: 'Autonomía Gas', val: getVal(car.fuel_range_entity), unit: 'km', color: 'text-orange-400' },
-    { label: 'Gasolina', val: getVal(car.fuel_entity), unit: 'L', color: 'text-yellow-500' },
-    { label: 'Odómetro', val: getVal(car.odometer_entity), unit: 'km', color: 'text-white' },
-    { label: 'Ahorro', val: getVal(car.saving_entity), unit: '€', color: 'text-green-400' },
-    { label: 'Consumo', val: getVal(car.avg_consumption_entity), unit: 'kWh', color: 'text-blue-400' }
-  ];
-
-  // Sensores Dinámicos + Alarma + Sync
-  const secondaryKPIs = [
-    { label: 'Alarma', val: formatAlarmState(getVal(car.windows_entity)), unit: '', color: getVal(car.windows_entity).includes('NOT') ? 'text-white/60' : 'text-red-400' },
-    { label: 'Último Sync', val: formatSyncDate(getVal(car.last_update_entity)), unit: '', color: 'text-blue-400/80' },
-    ...(car.extra_entities || []).map(id => ({
-      label: getFriendlyName(id),
-      val: getVal(id),
-      unit: getUnit(id),
-      color: 'text-white'
-    }))
-  ];
+  const car = config?.vehicle;
+  // BATERÍA REDONDEADA A 0 DECIMALES
+  const batteryRaw = parseFloat(getVal(car?.battery_entity, '0'));
+  const battery = isNaN(batteryRaw) ? 0 : Math.round(batteryRaw);
+  
+  const fuelValue = parseFloat(getVal(car?.fuel_entity, '0'));
+  const tankCap = car?.tank_capacity || 42;
+  const fuelLiters = isNaN(fuelValue) ? '---' : fuelValue.toFixed(1);
+  const fuelPercentage = isNaN(fuelValue) ? 0 : (fuelValue / tankCap) * 100;
 
   return (
-    <div className="flex flex-col gap-10 pb-32 animate-in fade-in duration-1000">
+    <div className="flex flex-col gap-10 pb-32 h-full overflow-y-auto no-scrollbar relative">
+      <style>{`
+         .leaflet-container {
+           background: #020617 !important;
+           border-radius: 40px;
+         }
+         /* ACLARADO DE MAPA OPTIMIZADO: Brillo a 1.5, contraste balanceado */
+         .car-map-container .leaflet-tile-pane {
+           filter: brightness(1.5) contrast(1.1) grayscale(0.1) hue-rotate(210deg) saturate(1.2);
+         }
+      `}</style>
       
-      <div className="relative glass rounded-[60px] overflow-hidden border border-white/10 h-[450px] shadow-2xl shrink-0 group">
-         <img src={car.image_url || "https://images.unsplash.com/photo-1617788138017-80ad42243c5d?q=80&w=2000"} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[10s]" alt="Car" />
+      <div className="flex justify-between items-center px-6 shrink-0">
+         <div className="flex items-center gap-4">
+            <div className="w-2 h-8 bg-blue-600 rounded-full shadow-[0_0_15px_#3b82f6]" />
+            <h2 className="text-xs font-black uppercase tracking-[0.4em] text-white">Central de Telemetría</h2>
+         </div>
+      </div>
+      
+      <div className="relative glass rounded-[60px] overflow-hidden border border-white/10 h-[480px] shrink-0 shadow-2xl">
+         <img src={car?.image_url || "https://images.unsplash.com/photo-1617788138017-80ad42243c5d?q=80&w=2000"} className="absolute inset-0 w-full h-full object-cover opacity-20 scale-105" alt="Car" />
          <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-transparent" />
          
-         <div className="absolute top-12 left-12 space-y-2">
-            <div className="flex items-center gap-3">
-               <div className={`w-3 h-3 rounded-full ${isCharging ? 'bg-green-400 animate-ping shadow-[0_0_15px_#4ade80]' : 'bg-blue-500 animate-pulse'}`} />
-               <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/60">{status}</span>
+         <button 
+           onClick={() => config && refreshData(config)}
+           className={`absolute top-10 right-10 glass-dark px-6 py-3 rounded-2xl flex items-center gap-3 border border-white/10 hover:bg-blue-600/40 transition-all active:scale-95 shadow-2xl z-20 ${isRefreshing ? 'opacity-50' : ''}`}
+         >
+            <svg className={`w-4 h-4 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="text-[9px] font-black uppercase tracking-widest text-white/80">Refrescar Sensores</span>
+         </button>
+
+         <div className="absolute top-12 left-12">
+            <h2 className="text-6xl font-black text-white italic tracking-tighter uppercase leading-none">Lynk & Co <span className="text-blue-500">01</span></h2>
+            <div className="flex items-center gap-3 mt-4 px-5 py-2 glass rounded-2xl border border-white/10 w-fit">
+               <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]" />
+               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Sentinel OS Active</span>
             </div>
-            <h2 className="text-7xl font-black text-white italic tracking-tighter uppercase leading-none">Lynk&co <span className="text-cyan-400 font-light">01</span></h2>
          </div>
 
-         <div className="absolute top-12 right-12 flex flex-col items-center gap-6">
-            <div className="relative w-32 h-32 flex flex-col items-center justify-center">
-               <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-                  <circle 
-                    cx="50" cy="50" r="45" 
-                    fill="none" 
-                    stroke={isCharging ? '#4ade80' : '#22d3ee'} 
-                    strokeWidth="6" 
-                    strokeDasharray={circumference}
-                    strokeDashoffset={offset}
-                    strokeLinecap="round"
-                    className="transition-all duration-[2s] ease-out" 
-                  />
-               </svg>
-               <p className="text-4xl font-black text-white">{battery}<span className="text-xs ml-1">%</span></p>
-            </div>
-            
-            {car.refresh_script && (
-               <button 
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing}
-                  className={`p-5 rounded-full glass border border-white/10 transition-all ${isRefreshing ? 'animate-spin opacity-50' : 'hover:bg-blue-600/20 hover:scale-110 active:scale-95'}`}
-               >
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-               </button>
-            )}
-         </div>
-
-         <div className="absolute bottom-12 left-12 right-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
-            {primaryKPIs.map((k, i) => (
-               <div key={i}>
-                  <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] line-clamp-1">{k.label}</p>
-                  <p className={`text-2xl font-black tracking-tight ${k.color}`}>{formatNexusNum(k.val)}<span className="text-[10px] ml-1 opacity-40 uppercase font-black">{k.unit}</span></p>
+         <div className="absolute bottom-12 left-12 right-12 grid grid-cols-2 md:grid-cols-4 gap-10">
+            <div className="space-y-2 group">
+               <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] group-hover:text-blue-400 transition-colors">Batería</p>
+               <p className="text-5xl font-black text-white tabular-nums">{battery}%</p>
+               <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                     <div className="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6]" style={{ width: `${battery}%` }} />
+                  </div>
+                  <span className="text-[11px] font-black text-blue-400 uppercase">{getVal(car?.range_entity)} km</span>
                </div>
-            ))}
+            </div>
+            <div className="space-y-2 group">
+               <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] group-hover:text-orange-400 transition-colors">Gasolina</p>
+               <div className="flex items-baseline gap-2">
+                  <p className="text-5xl font-black text-orange-400 tabular-nums">{fuelLiters}</p>
+                  <span className="text-xl font-black text-orange-400/40 italic uppercase tracking-tighter">L</span>
+               </div>
+               <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                     <div className="h-full bg-orange-500 shadow-[0_0_10px_#f97316]" style={{ width: `${fuelPercentage}%` }} />
+                  </div>
+                  <span className="text-[11px] font-black text-orange-400 uppercase">{getVal(car?.fuel_range_entity)} km</span>
+               </div>
+            </div>
+            <div className="space-y-2">
+               <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Carga</p>
+               <p className="text-5xl font-black text-green-400 tabular-nums">{getVal(car?.charging_speed_entity)}<span className="text-sm ml-1 opacity-40 uppercase">kW</span></p>
+               <p className="text-[10px] font-black text-white/20 uppercase tracking-widest italic">{getVal(car?.plug_status_entity, 'Disconnected')}</p>
+            </div>
+            <div className="space-y-2 text-right md:text-left">
+               <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Odómetro</p>
+               <p className="text-5xl font-black text-white/80 tabular-nums">{formatKm(getVal(car?.odometer_entity))}<span className="text-sm ml-1 opacity-40 uppercase">km</span></p>
+               <p className="text-[10px] font-black text-blue-400/40 uppercase tracking-widest italic">Global_Tracker</p>
+            </div>
          </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-         {secondaryKPIs.map((k, i) => (
-            <div key={i} className="glass p-6 rounded-[35px] border border-white/5 hover:bg-white/[0.08] transition-all flex flex-col justify-center min-h-[140px] shadow-lg">
-               <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-2 line-clamp-2 leading-tight">{k.label}</p>
-               <p className={`text-lg font-black ${k.color || 'text-white'}`}>
-                  {k.label === 'Último Sync' ? k.val : formatNexusNum(k.val)}
-                  <span className="text-[9px] ml-1 opacity-20 uppercase font-black">{k.unit}</span>
-               </p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 shrink-0 h-[520px]">
+         <div className="lg:col-span-2 glass rounded-[50px] border border-white/10 p-2 overflow-hidden shadow-2xl relative car-map-container bg-[#000000]">
+            <div ref={mapContainerRef} className="w-full h-full rounded-[45px]" />
+            <div className="absolute top-8 left-8 z-[1000] glass px-6 py-3 rounded-2xl border border-white/20 flex items-center gap-3 backdrop-blur-3xl">
+               <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping shadow-[0_0_15px_#3b82f6]" />
+               <span className="text-[10px] font-black uppercase text-white tracking-[0.2em]">Rastreo Histórico (24h)</span>
             </div>
-         ))}
+         </div>
+
+         <div className="glass rounded-[50px] p-12 border border-white/10 flex flex-col justify-between shadow-2xl bg-black/20">
+            <div>
+               <h3 className="text-[12px] font-black uppercase tracking-[0.5em] text-blue-400 mb-12 italic">Diagnostic Shield</h3>
+               <div className="space-y-10">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-5 group">
+                     <span className="text-[10px] uppercase font-bold text-white/40 tracking-[0.3em] group-hover:text-white transition-colors">Seguridad</span>
+                     <span className="text-xs font-black text-green-400 uppercase tracking-widest italic">{getVal(car?.lock_entity, 'SECURE')}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-white/5 pb-5 group">
+                     <span className="text-[10px] uppercase font-bold text-white/40 tracking-[0.3em] group-hover:text-white transition-colors">Clima</span>
+                     <span className="text-xs font-black text-cyan-400 uppercase tracking-widest italic">{getVal(car?.climate_entity, 'IDLE')}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-white/5 pb-5 group">
+                     <span className="text-[10px] uppercase font-bold text-white/40 tracking-[0.3em] group-hover:text-white transition-colors">Ventanillas</span>
+                     <span className="text-xs font-black text-white uppercase tracking-widest italic">{getVal(car?.windows_entity, 'CLOSED')}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-white/5 pb-5 group">
+                     <span className="text-[10px] uppercase font-bold text-white/40 tracking-[0.3em] group-hover:text-white transition-colors">Trayecto Hoy</span>
+                     <span className="text-xs font-black text-purple-400 uppercase tracking-widest italic">{getVal(car?.km_today_entity, '0')} km</span>
+                  </div>
+               </div>
+            </div>
+            
+            <button 
+              onClick={() => {
+                if (config) {
+                  const s = getEntityData(config.vehicle.lock_entity);
+                  const isLocked = s?.state === 'locked';
+                  callHAService(config.url, config.token, 'lock', isLocked ? 'unlock' : 'lock', { entity_id: config.vehicle.lock_entity });
+                }
+              }}
+              className="w-full py-6 bg-blue-600 rounded-[35px] text-[11px] font-black uppercase tracking-[0.5em] shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all text-white mt-12"
+            >
+               Toggle Lock Status
+            </button>
+         </div>
       </div>
     </div>
   );
