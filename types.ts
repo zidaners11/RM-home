@@ -23,7 +23,6 @@ export interface UserLocation {
   history?: { lat: number; lng: number; time: string }[];
 }
 
-// Added missing SensorData interface for dashboard metrics
 export interface SensorData {
   id: string;
   name: string;
@@ -34,7 +33,6 @@ export interface SensorData {
   trend?: 'up' | 'down' | 'stable';
 }
 
-// Added missing WeatherData interface for climatic nodes
 export interface WeatherData {
   location: string;
   temp: number;
@@ -44,7 +42,6 @@ export interface WeatherData {
   wind: number;
 }
 
-// Added missing FireflyConfig interface for financial synchronization
 export interface FireflyConfig {
   use_sheets_mirror?: boolean;
   sheets_csv_url?: string;
@@ -59,8 +56,8 @@ export interface VehicleConfig {
   range_entity: string;
   odometer_entity: string;
   fuel_entity: string;
-  fuel_unit: 'liters' | 'percentage'; // Nueva propiedad
-  tank_capacity: number; // Nueva propiedad
+  fuel_unit: 'liters' | 'percentage';
+  tank_capacity: number;
   fuel_range_entity: string;
   service_km_entity: string;
   saving_entity: string;
@@ -93,6 +90,7 @@ export interface HomeAssistantConfig {
   solar_monthly_entity?: string;
   grid_consumption_entity?: string;
   grid_export_entity?: string; 
+  house_consumption_entity?: string; // Nuevo sensor manual de consumo
   energy_cost_entity?: string;
   energy_extra_entities?: string[];
   car_battery_entity?: string;
@@ -102,7 +100,7 @@ export interface HomeAssistantConfig {
   tracked_people: string[];
   alarm_entity?: string;
   vehicle: VehicleConfig;
-  finance: FireflyConfig; // Use FireflyConfig instead of any
+  finance: FireflyConfig;
   custom_bg_url?: string; 
   weather_nodes: any;
 }

@@ -73,8 +73,7 @@ const VehicleView: React.FC = () => {
       mapRef.current = L.map(mapContainerRef.current, {
         zoomControl: false,
         attributionControl: false,
-        preferCanvas: true,
-        background: '#000000'
+        preferCanvas: true
       }).setView([40.4168, -3.7038], 15);
 
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -148,7 +147,6 @@ const VehicleView: React.FC = () => {
   );
 
   const car = config?.vehicle;
-  // BATERÍA REDONDEADA A 0 DECIMALES
   const batteryRaw = parseFloat(getVal(car?.battery_entity, '0'));
   const battery = isNaN(batteryRaw) ? 0 : Math.round(batteryRaw);
   
@@ -160,11 +158,18 @@ const VehicleView: React.FC = () => {
   return (
     <div className="flex flex-col gap-10 pb-32 h-full overflow-y-auto no-scrollbar relative">
       <style>{`
+         @keyframes breathing {
+           0% { transform: scale(1.05); }
+           50% { transform: scale(1.15); }
+           100% { transform: scale(1.05); }
+         }
+         .car-zoom-bg {
+           animation: breathing 15s ease-in-out infinite;
+         }
          .leaflet-container {
            background: #020617 !important;
            border-radius: 40px;
          }
-         /* ACLARADO DE MAPA OPTIMIZADO: Brillo a 1.5, contraste balanceado */
          .car-map-container .leaflet-tile-pane {
            filter: brightness(1.5) contrast(1.1) grayscale(0.1) hue-rotate(210deg) saturate(1.2);
          }
@@ -178,8 +183,12 @@ const VehicleView: React.FC = () => {
       </div>
       
       <div className="relative glass rounded-[60px] overflow-hidden border border-white/10 h-[480px] shrink-0 shadow-2xl">
-         <img src={car?.image_url || "https://images.unsplash.com/photo-1617788138017-80ad42243c5d?q=80&w=2000"} className="absolute inset-0 w-full h-full object-cover opacity-20 scale-105" alt="Car" />
-         <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-transparent" />
+         <img 
+           src={car?.image_url || "https://images.unsplash.com/photo-1617788138017-80ad42243c5d?q=80&w=2000"} 
+           className="absolute inset-0 w-full h-full object-cover opacity-40 car-zoom-bg" 
+           alt="Car" 
+         />
+         <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-black/20" />
          
          <button 
            onClick={() => config && refreshData(config)}

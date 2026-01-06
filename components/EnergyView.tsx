@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, YAxis, CartesianGrid } from 'recharts';
 import { fetchHAStates, fetchHAHistory } from '../homeAssistantService';
 import { HomeAssistantConfig } from '../types';
@@ -7,13 +7,26 @@ import { HomeAssistantConfig } from '../types';
 const formatNexusNum = (val: any) => {
   const n = parseFloat(val);
   if (isNaN(n)) return val;
-  return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n);
+  return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+};
+
+const MicroChart = ({ history, color }: { history: any[], color: string }) => {
+  if (!history || history.length === 0) return <div className="h-full w-full opacity-10 flex items-center justify-center text-[8px]">SIN DATOS</div>;
+  
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={history}>
+        <Area type="monotone" dataKey="val" stroke={color} fill={color} strokeWidth={2} fillOpacity={0.1} dot={false} isAnimationActive={false} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
 };
 
 const EnergyView: React.FC = () => {
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig | null>(null);
   const [states, setStates] = useState<any[]>([]);
-  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [mainHistory, setMainHistory] = useState<any[]>([]);
+  const [extraHistories, setExtraHistories] = useState<{[key: string]: any[]}>({});
   const [loading, setLoading] = useState(true);
 
   const loadConfig = () => {
@@ -23,7 +36,12 @@ const EnergyView: React.FC = () => {
         const config = JSON.parse(saved);
         setHaConfig(config);
         refreshData(config);
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error("Error cargando config:", e);
+        setLoading(false);
+      }
+    } else {
+      setLoading(false);
     }
   };
 
@@ -31,7 +49,8 @@ const EnergyView: React.FC = () => {
     loadConfig();
     window.addEventListener('nexus_config_updated', loadConfig);
     const interval = setInterval(() => {
-      if (haConfig) refreshData(haConfig);
+      const saved = localStorage.getItem('nexus_ha_config');
+      if (saved) refreshData(JSON.parse(saved));
     }, 30000);
     return () => {
       window.removeEventListener('nexus_config_updated', loadConfig);
@@ -44,160 +63,178 @@ const EnergyView: React.FC = () => {
       const data = await fetchHAStates(config.url, config.token);
       if (data) setStates(data);
 
+      // 1. Gráfico Principal (Placas y Red)
       if (config.solar_production_entity && config.grid_consumption_entity) {
         const solarHist = await fetchHAHistory(config.url, config.token, config.solar_production_entity, 24);
         const gridHist = await fetchHAHistory(config.url, config.token, config.grid_consumption_entity, 24);
+        
+        const dayData = Array.from({ length: 24 }, (_, i) => ({
+          time: i.toString().padStart(2, '0') + ':00',
+          solar: 0,
+          grid: 0,
+          hour: i
+        }));
 
-        if (solarHist.length > 0 || gridHist.length > 0) {
-          const combined = solarHist.map((s: any, idx: number) => {
-            const time = new Date(s.last_changed).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-            const g = gridHist[idx] || { state: '0' };
-            const solarVal = Math.max(0, parseFloat(s.state) || 0);
-            const gridVal = parseFloat(g.state) || 0;
-            return {
-              time,
-              solar: solarVal,
-              grid: gridVal,
-              house: solarVal + gridVal
-            };
-          }).filter((_: unknown, i: number) => i % 4 === 0);
-          setHistoryData(combined);
-        }
+        solarHist?.forEach((entry: any) => {
+          const date = new Date(entry.last_changed);
+          if (!isNaN(date.getTime())) dayData[date.getHours()].solar = Math.max(0, parseFloat(entry.state) || 0);
+        });
+
+        gridHist?.forEach((entry: any) => {
+          const date = new Date(entry.last_changed);
+          if (!isNaN(date.getTime())) dayData[date.getHours()].grid = Math.max(0, parseFloat(entry.state) || 0);
+        });
+
+        setMainHistory(dayData);
       }
+
+      // 2. Gráficos Extra
+      if (config.energy_extra_entities && config.energy_extra_entities.length > 0) {
+        const newExtraHistories: {[key: string]: any[]} = {};
+        for (const id of config.energy_extra_entities) {
+          const hist = await fetchHAHistory(config.url, config.token, id, 24);
+          const processed = Array.from({ length: 24 }, (_, i) => ({ hour: i, val: 0 }));
+          
+          hist?.forEach((entry: any) => {
+            const date = new Date(entry.last_changed);
+            if (!isNaN(date.getTime())) processed[date.getHours()].val = Math.max(0, parseFloat(entry.state) || 0);
+          });
+          newExtraHistories[id] = processed;
+        }
+        setExtraHistories(newExtraHistories);
+      }
+
     } catch (e) { 
-      console.error("Energy Telemetry Sync Failed", e);
-    } finally { 
-      setLoading(false); 
+      console.error("Error en refreshData:", e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getEntityData = (id?: string) => {
-    if (!id || !states) return null;
-    return states.find(st => st.entity_id === id);
-  };
-
   const getVal = (id?: string) => {
-    const s = getEntityData(id);
+    const s = states.find(st => st.entity_id === id);
     return s ? s.state : '0';
   };
 
   const solarNow = parseFloat(getVal(haConfig?.solar_production_entity));
   const gridCons = parseFloat(getVal(haConfig?.grid_consumption_entity));
+  const houseManualNow = haConfig?.house_consumption_entity ? parseFloat(getVal(haConfig.house_consumption_entity)) : null;
+  const houseNow = (houseManualNow !== null && !isNaN(houseManualNow)) ? houseManualNow : (solarNow + gridCons);
 
-  const mainMetrics = useMemo(() => {
-    if (!haConfig) return [];
-    return [
-      { label: 'Instantánea Solar', val: getVal(haConfig.solar_production_entity), unit: 'W', color: 'text-yellow-400', border: 'border-yellow-500/20' },
-      { label: 'Consumo Real Casa', val: (solarNow + gridCons).toString(), unit: 'W', color: 'text-purple-400', border: 'border-purple-500/20' },
-      { label: 'Importación Red', val: getVal(haConfig.grid_consumption_entity), unit: 'W', color: 'text-blue-400', border: 'border-blue-500/20' },
-      { label: 'Exportación Red', val: getVal(haConfig.grid_export_entity), unit: 'W', color: 'text-green-400', border: 'border-green-500/20' },
-      { label: 'Generación Diaria', val: getVal(haConfig.solar_daily_entity), unit: 'kWh', color: 'text-orange-400', border: 'border-orange-500/20' },
-      { label: 'Generación Mensual', val: getVal(haConfig.solar_monthly_entity), unit: 'kWh', color: 'text-cyan-400', border: 'border-cyan-500/20' },
-      { label: 'Coste Energía', val: getVal(haConfig.energy_cost_entity), unit: '€', color: 'text-white/40', border: 'border-white/10' },
-    ];
-  }, [haConfig, states, solarNow, gridCons]);
+  const extraColors = ['#06b6d4', '#d946ef', '#84cc16', '#f59e0b', '#ef4444', '#3b82f6'];
 
-  const extraMetrics = useMemo(() => {
-    if (!haConfig) return [];
-    return (haConfig.energy_extra_entities || []).map(id => {
-      const data = getEntityData(id);
-      return {
-        label: data?.attributes?.friendly_name || id.split('.')[1],
-        val: data?.state || '---',
-        unit: data?.attributes?.unit_of_measurement || '',
-        color: 'text-white/30',
-        border: 'border-white/5'
-      };
-    });
-  }, [haConfig, states]);
+  if (loading && mainHistory.length === 0) {
+    return (
+      <div className="h-[60vh] flex flex-col items-center justify-center">
+        <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-blue-400 font-black text-[9px] uppercase tracking-[0.4em] animate-pulse">Sincronizando Matriz Energética...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-10 pb-32 animate-in fade-in duration-700 overflow-y-auto no-scrollbar h-full">
-       {/* KPIs MAESTROS */}
-       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 shrink-0 px-2">
-          {mainMetrics.map((m, i) => (
-            <div key={i} className={`glass p-5 rounded-[30px] border ${m.border} hover:bg-white/[0.08] transition-all flex flex-col justify-center min-h-[120px] shadow-xl group`}>
-               <p className="text-[8px] text-white/30 uppercase font-black tracking-widest mb-1 group-hover:text-white transition-colors line-clamp-2">{m.label}</p>
-               <p className={`text-xl font-black tracking-tighter ${m.color}`}>
-                  {formatNexusNum(m.val)}
-                  <span className="text-[9px] ml-1 text-white/10 font-black uppercase">{m.unit}</span>
-               </p>
-            </div>
-          ))}
+    <div className="space-y-10 pb-32 animate-in fade-in duration-700 overflow-y-auto no-scrollbar h-full px-2">
+       
+       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="glass p-8 rounded-[45px] border border-yellow-500/20 bg-yellow-500/[0.02] flex flex-col justify-between h-[180px] shadow-2xl relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/5 rounded-full blur-[50px] -mr-10 -mt-10" />
+             <p className="text-[10px] text-yellow-500/40 uppercase font-black tracking-[0.4em] italic">Generación Placas</p>
+             <div>
+                <h4 className="text-6xl font-black text-yellow-400 italic tracking-tighter">{formatNexusNum(solarNow)}<span className="text-sm ml-2 text-yellow-500/20 not-italic uppercase">W</span></h4>
+                <p className="text-[9px] text-yellow-500/20 font-black uppercase mt-2 tracking-widest">Producción Fotovoltaica</p>
+             </div>
+          </div>
+          <div className="glass p-8 rounded-[45px] border border-blue-500/20 bg-blue-500/[0.02] flex flex-col justify-between h-[180px] shadow-2xl relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/5 rounded-full blur-[50px] -mr-10 -mt-10" />
+             <p className="text-[10px] text-blue-500/40 uppercase font-black tracking-[0.4em] italic">Extracción de Red</p>
+             <div>
+                <h4 className="text-6xl font-black text-blue-400 italic tracking-tighter">{formatNexusNum(gridCons)}<span className="text-sm ml-2 text-blue-500/20 not-italic uppercase">W</span></h4>
+                <p className="text-[9px] text-blue-500/20 font-black uppercase mt-2 tracking-widest">Consumo Externo</p>
+             </div>
+          </div>
+          <div className="glass p-8 rounded-[45px] border border-purple-500/20 bg-purple-500/[0.02] flex flex-col justify-between h-[180px] shadow-2xl relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-400/5 rounded-full blur-[50px] -mr-10 -mt-10" />
+             <p className="text-[10px] text-purple-500/40 uppercase font-black tracking-[0.4em] italic">Consumo Casa</p>
+             <div>
+                <h4 className="text-6xl font-black text-purple-400 italic tracking-tighter">{formatNexusNum(houseNow)}<span className="text-sm ml-2 text-purple-500/20 not-italic uppercase">W</span></h4>
+                <p className="text-[9px] text-purple-500/20 font-black uppercase mt-2 tracking-widest">{haConfig?.house_consumption_entity ? 'Lectura Directa Sensor' : 'Carga Calculada Vivienda'}</p>
+             </div>
+          </div>
        </div>
 
-       {/* GRÁFICO Y BALANCE */}
-       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 shrink-0">
-          <div className="lg:col-span-2 glass p-8 rounded-[50px] border border-white/10 h-[500px] relative shadow-2xl bg-black/20">
-             <div className="flex justify-between items-center mb-6">
-                <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Telemetría de Flujo Maestro (Watts)</h4>
-                <div className="flex gap-4">
-                   <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                      <span className="text-[8px] uppercase font-black text-white/40 tracking-widest">Placas</span>
-                   </div>
-                   <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7]" />
-                      <span className="text-[8px] uppercase font-black text-white/40 tracking-widest">Casa</span>
-                   </div>
+       <div className="glass p-8 rounded-[50px] border border-white/10 h-[520px] relative shadow-2xl bg-black/40 overflow-hidden">
+          <div className="flex justify-between items-center mb-10">
+             <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 italic">Ciclo Diario 00h-24h (W)</h4>
+             <div className="flex gap-8">
+                <div className="flex items-center gap-3">
+                   <div className="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_15px_#facc15]" />
+                   <span className="text-[10px] uppercase font-black text-white/40 tracking-widest">Placas</span>
+                </div>
+                <div className="flex items-center gap-3">
+                   <div className="w-3 h-3 rounded-full bg-blue-400 shadow-[0_0_15px_#3b82f6]" />
+                   <span className="text-[10px] uppercase font-black text-white/40 tracking-widest">Red</span>
                 </div>
              </div>
-             <div className="h-[360px]">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={historyData}>
-                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                       <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.2)', fontSize: 9}} minTickGap={40} />
-                       <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.2)', fontSize: 9}} width={40} />
-                       <Tooltip contentStyle={{backgroundColor: 'rgba(2, 6, 23, 0.95)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '20px', fontSize: '10px', color: 'white'}} />
-                       <Area type="monotone" dataKey="solar" name="Placas" stroke="#fbbf24" fill="url(#solarGrad)" strokeWidth={3} dot={false} fillOpacity={0.1} />
-                       <Area type="monotone" dataKey="grid" name="Red" stroke="#3b82f6" fill="rgba(59,130,246,0.05)" strokeWidth={2} dot={false} />
-                       <Area type="monotone" dataKey="house" name="Casa" stroke="#a855f7" fill="url(#houseGrad)" strokeWidth={4} dot={false} fillOpacity={0.2} />
-                       <defs>
-                          <linearGradient id="solarGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#fbbf24" stopOpacity={0.2}/><stop offset="95%" stopColor="#fbbf24" stopOpacity={0}/></linearGradient>
-                          <linearGradient id="houseGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/><stop offset="95%" stopColor="#a855f7" stopOpacity={0}/></linearGradient>
-                       </defs>
-                    </AreaChart>
-                </ResponsiveContainer>
-             </div>
           </div>
-
-          <div className="glass p-10 rounded-[50px] border border-white/10 flex flex-col justify-center gap-12 shadow-2xl text-center relative overflow-hidden bg-black/30">
-             <div className="absolute top-0 right-0 w-48 h-48 bg-blue-600/5 rounded-full blur-[100px]" />
-             <div className="relative z-10">
-                <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.4em] mb-4">Balance Estratégico</p>
-                <p className={`text-7xl font-black tracking-tighter italic ${(solarNow - gridCons) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                   {formatNexusNum(solarNow - gridCons)}<span className="text-sm ml-2 not-italic">W</span>
-                </p>
-                <p className="text-[9px] uppercase font-black text-white/20 mt-4 tracking-widest">Sincronización de Red</p>
-             </div>
-             <div className="p-6 bg-white/5 border border-white/10 rounded-[35px] relative z-10">
-                <p className="text-[10px] text-white/50 italic leading-relaxed font-medium">
-                   "Visualización maestra. Las métricas de telemetría auxiliar se han desplazado al panel inferior para optimizar el flujo de datos principal."
-                </p>
-             </div>
+          <div className="h-[380px]">
+             <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={mainHistory} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                   <defs>
+                      <linearGradient id="colorSolar" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.15}/>
+                        <stop offset="95%" stopColor="#fbbf24" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorGrid" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                   </defs>
+                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.02)" />
+                   <XAxis 
+                     dataKey="time" 
+                     axisLine={false} 
+                     tickLine={false} 
+                     tick={{fill: 'rgba(255,255,255,0.2)', fontSize: 10}} 
+                     interval={2} 
+                   />
+                   <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.2)', fontSize: 10}} width={50} />
+                   <Tooltip 
+                      contentStyle={{backgroundColor: 'rgba(2, 6, 23, 0.95)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '24px', fontSize: '11px', color: 'white', backdropFilter: 'blur(10px)'}}
+                      itemStyle={{padding: '4px 0'}}
+                      cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
+                   />
+                   <Area type="monotone" name="Placas" dataKey="solar" stroke="#fbbf24" fillOpacity={1} fill="url(#colorSolar)" strokeWidth={4} dot={false} isAnimationActive={true} />
+                   <Area type="monotone" name="Red" dataKey="grid" stroke="#3b82f6" fillOpacity={1} fill="url(#colorGrid)" strokeWidth={4} strokeDasharray="5 5" dot={false} isAnimationActive={true} />
+                </AreaChart>
+             </ResponsiveContainer>
           </div>
        </div>
 
-       {/* KPIs EXTRAS (DEBAJO DEL GRÁFICO) */}
-       {extraMetrics.length > 0 && (
-         <div className="space-y-6 shrink-0">
-            <div className="flex items-center gap-4 px-6">
-               <div className="h-px flex-1 bg-white/10" />
-               <h4 className="text-[10px] font-black uppercase tracking-[0.6em] text-white/20">Telemetría Auxiliar</h4>
-               <div className="h-px flex-1 bg-white/10" />
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 px-2">
-               {extraMetrics.map((m, i) => (
-                  <div key={i} className={`glass p-4 rounded-[24px] border ${m.border} hover:bg-white/[0.05] transition-all flex flex-col justify-center min-h-[90px]`}>
-                     <p className="text-[8px] text-white/20 uppercase font-bold tracking-widest mb-1 truncate">{m.label}</p>
-                     <p className={`text-lg font-black tracking-tighter ${m.color}`}>
-                        {formatNexusNum(m.val)}
-                        <span className="text-[8px] ml-1 text-white/5 font-black uppercase">{m.unit}</span>
-                     </p>
-                  </div>
-               ))}
-            </div>
-         </div>
+       {(haConfig?.energy_extra_entities || []).length > 0 && (
+          <div className="space-y-6">
+             <div className="flex items-center gap-6 px-4">
+                <div className="h-px flex-1 bg-white/10" />
+                <h4 className="text-[10px] font-black uppercase tracking-[0.6em] text-white/20 italic">Consumos Específicos (24h)</h4>
+                <div className="h-px flex-1 bg-white/10" />
+             </div>
+             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 px-2">
+                {(haConfig?.energy_extra_entities || []).map((id, i) => {
+                   const s = states.find(st => st.entity_id === id);
+                   const color = extraColors[i % extraColors.length];
+                   return (
+                      <div key={id} className="glass p-6 rounded-[40px] border border-white/5 hover:bg-white/[0.04] transition-all flex flex-col justify-between h-[160px] relative overflow-hidden group">
+                         <div className="relative z-10 flex flex-col justify-between h-full">
+                            <p className="text-[9px] text-white/30 uppercase font-black tracking-widest truncate">{s?.attributes?.friendly_name || id.split('.')[1]}</p>
+                            <h4 className="text-3xl font-black text-white italic tracking-tighter">{formatNexusNum(s?.state)}<span className="text-[10px] ml-1 text-white/20 uppercase not-italic">W</span></h4>
+                         </div>
+                         <div className="absolute inset-x-0 bottom-0 h-16 z-0 opacity-50 group-hover:opacity-100 transition-opacity">
+                            <MicroChart history={extraHistories[id] || []} color={color} />
+                         </div>
+                      </div>
+                   );
+                })}
+             </div>
+          </div>
        )}
     </div>
   );
