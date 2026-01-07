@@ -171,7 +171,7 @@ const Dashboard: React.FC = () => {
               {isNumeric && chartPoints.length > 0 && (
                  <div className="flex gap-3 text-[7px] font-black text-white/20 uppercase tracking-[0.2em] pb-1">
                     <span>{chartPoints[0].time}</span>
-                    <span className="animate-pulse opacity-50">>>></span>
+                    <span className="animate-pulse opacity-50"></span>
                     <span>LIVE</span>
                  </div>
               )}
