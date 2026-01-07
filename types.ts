@@ -10,6 +10,8 @@ export interface WidgetConfig {
   unit?: string;
   colSpan: 1 | 2;
   color?: string;
+  historyHours?: number;
+  historyPoints?: number;
 }
 
 export interface UserLocation {

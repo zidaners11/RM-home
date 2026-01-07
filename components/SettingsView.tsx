@@ -83,7 +83,9 @@ const SettingsView: React.FC = () => {
       entity_id: '',
       type,
       title: type === 'sensor' ? 'Nuevo Sensor' : type === 'chart' ? 'Nueva Gráfica' : 'Nuevo Botón',
-      colSpan: 1
+      colSpan: 1,
+      historyHours: 24,
+      historyPoints: 30
     };
     setHaConfig({ ...haConfig, dashboardWidgets: [...(haConfig.dashboardWidgets || []), newWidget] });
   };
@@ -207,12 +209,36 @@ const SettingsView: React.FC = () => {
                             className="bg-transparent border-none text-[11px] font-black uppercase text-white outline-none w-full"
                           />
                        </div>
+                       
                        <EntitySelector 
                          label="Entidad vinculada" 
                          value={w.entity_id} 
                          onChange={(v:string) => updateWidget(w.id, { entity_id: v })}
                          filterPrefix={w.type === 'button' ? 'script.' : 'sensor.'}
                        />
+
+                       {w.type === 'chart' && (
+                         <div className="grid grid-cols-2 gap-4 mt-2">
+                            <div className="space-y-1">
+                               <label className="text-[8px] font-black text-white/20 uppercase tracking-widest ml-2">Horas Historial</label>
+                               <input 
+                                 type="number" 
+                                 value={w.historyHours || 24} 
+                                 onChange={e => updateWidget(w.id, { historyHours: parseInt(e.target.value) || 24 })}
+                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white outline-none"
+                               />
+                            </div>
+                            <div className="space-y-1">
+                               <label className="text-[8px] font-black text-white/20 uppercase tracking-widest ml-2">Puntos Visuales</label>
+                               <input 
+                                 type="number" 
+                                 value={w.historyPoints || 30} 
+                                 onChange={e => updateWidget(w.id, { historyPoints: parseInt(e.target.value) || 30 })}
+                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white outline-none"
+                               />
+                            </div>
+                         </div>
+                       )}
                     </div>
                   ))}
                   {(haConfig.dashboardWidgets || []).length === 0 && (

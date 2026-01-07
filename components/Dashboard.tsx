@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WidgetConfig, HomeAssistantConfig } from '../types';
 import { fetchHAStates, callHAService, fetchHAHistory } from '../homeAssistantService';
 import { getGlobalNexusStatus } from '../geminiService';
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const formatKm = (val: any) => {
   const n = parseFloat(val);
@@ -48,10 +48,22 @@ const Dashboard: React.FC = () => {
       setHaStates(states);
       
       const activeWidgets = config.dashboardWidgets || [];
+      // Ahora recuperamos historial para TODOS los widgets que no sean botones
       activeWidgets.forEach(async (w) => {
-        if (w.type === 'chart') {
-          const h = await fetchHAHistory(config.url, config.token, w.entity_id, 24);
-          setHistoryData(prev => ({ ...prev, [w.entity_id]: h }));
+        if (w.type !== 'button') {
+          const h = await fetchHAHistory(config.url, config.token, w.entity_id, w.historyHours || 24);
+          let processedHistory = (h || []).map((entry: any) => ({
+            v: parseFloat(entry.state),
+            time: new Date(entry.last_changed).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          })).filter((e: any) => !isNaN(e.v));
+
+          const targetPoints = w.historyPoints || 30;
+          if (processedHistory.length > targetPoints) {
+            const step = Math.ceil(processedHistory.length / targetPoints);
+            processedHistory = processedHistory.filter((_:any, i:number) => i % step === 0);
+          }
+
+          setHistoryData(prev => ({ ...prev, [w.entity_id]: processedHistory }));
         }
       });
 
@@ -77,7 +89,7 @@ const Dashboard: React.FC = () => {
         <button 
           key={widget.id} 
           onClick={() => haConfig && callHAService(haConfig.url, haConfig.token, 'script', widget.entity_id.replace('script.', ''), {})}
-          className="glass p-8 rounded-[45px] border border-green-500/20 flex flex-col justify-between h-[200px] shadow-lg group hover:bg-green-500/10 transition-all text-left"
+          className="glass p-8 rounded-[45px] border border-green-500/20 flex flex-col justify-between h-[200px] shadow-lg group hover:bg-green-500/10 transition-all text-left bg-black/20"
         >
            <div className="flex justify-between items-start">
               <p className="text-[10px] font-black uppercase tracking-[0.4em] text-green-400/40">{friendlyName}</p>
@@ -90,32 +102,81 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    if (widget.type === 'chart') {
-      const chartPoints = historyData[widget.entity_id] || [];
-      return (
-        <div key={widget.id} className="glass p-8 rounded-[45px] border border-purple-500/10 flex flex-col justify-between h-[200px] shadow-lg group relative overflow-hidden">
+    // Todos los demás widgets (sensor o chart) muestran ahora la gráfica avanzada
+    const chartPoints = historyData[widget.entity_id] || [];
+    const values = chartPoints.map(p => p.v);
+    const hasValues = values.length > 0;
+    const maxVal = hasValues ? Math.max(...values) : 0;
+    const minVal = hasValues ? Math.min(...values) : 0;
+    const isNumeric = !isNaN(parseFloat(val));
+    const chartColor = widget.type === 'chart' ? '#a855f7' : '#3b82f6';
+
+    return (
+      <div key={widget.id} className={`glass p-8 rounded-[45px] border ${widget.type === 'chart' ? 'border-purple-500/10' : 'border-blue-500/10'} flex flex-col justify-between h-[200px] shadow-lg group relative overflow-hidden bg-black/20`}>
+         {/* Gráfica de Fondo Táctica */}
+         {isNumeric && (
            <div className="absolute inset-0 z-0 opacity-40">
               <ResponsiveContainer width="100%" height="100%">
-                 <AreaChart data={chartPoints.map(p => ({ v: parseFloat(p.state) }))}>
-                    <Area type="monotone" dataKey="v" stroke="#a855f7" fill="#a855f7" strokeWidth={3} fillOpacity={0.1} />
+                 <AreaChart data={chartPoints} margin={{ top: 50, right: 0, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id={`grad_${widget.id}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'rgba(0,0,0,0.85)', border: `1px solid ${chartColor}44`, borderRadius: '15px', fontSize: '9px', color: 'white', backdropFilter: 'blur(15px)' }}
+                      itemStyle={{ color: chartColor, fontWeight: '900', textTransform: 'uppercase' }}
+                      labelStyle={{ color: 'rgba(255,255,255,0.3)', marginBottom: '4px', fontWeight: 'bold' }}
+                      cursor={{ stroke: chartColor, strokeWidth: 1, strokeDasharray: '4 4' }}
+                    />
+                    <XAxis dataKey="time" hide={true} />
+                    <YAxis hide={true} domain={['dataMin - 1', 'dataMax + 1']} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="v" 
+                      stroke={chartColor} 
+                      fill={`url(#grad_${widget.id})`} 
+                      strokeWidth={3} 
+                      isAnimationActive={true} 
+                      animationDuration={1000}
+                    />
                  </AreaChart>
               </ResponsiveContainer>
            </div>
-           <div className="relative z-10 flex flex-col h-full justify-between">
-              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 truncate group-hover:text-white transition-colors">{friendlyName}</p>
-              <h4 className="text-4xl font-black text-white italic tracking-tighter">{val}<span className="text-xs ml-2 text-white/20 uppercase font-black not-italic">{unit}</span></h4>
-           </div>
-        </div>
-      );
-    }
+         )}
 
-    return (
-      <div key={widget.id} className="glass p-8 rounded-[45px] border border-blue-500/10 flex flex-col justify-between h-[200px] shadow-lg group hover:bg-white/[0.02] transition-all">
-         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 truncate group-hover:text-blue-400 transition-colors">{friendlyName}</p>
-         <h4 className="text-4xl font-black text-white italic tracking-tighter truncate">
-            {friendlyName.toLowerCase().includes('km') ? formatKm(val) : (friendlyName.toLowerCase().includes('batería') ? Math.round(parseFloat(val)) : val)}
-            <span className="text-xs ml-2 text-white/20 uppercase font-black not-italic">{unit}</span>
-         </h4>
+         {/* Capa de Información Táctica */}
+         <div className="relative z-10 flex flex-col h-full justify-between pointer-events-none">
+            <div className="flex justify-between items-start">
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 truncate group-hover:text-white transition-colors">{friendlyName}</p>
+              {isNumeric && hasValues && (
+                <div className="flex flex-col items-end gap-1">
+                   <span className={`text-[7px] font-black ${widget.type === 'chart' ? 'bg-purple-600/20 text-purple-400' : 'bg-blue-600/20 text-blue-400'} px-2 py-1 rounded-full`}>{widget.historyHours || 24}H</span>
+                   <span className="text-[8px] font-black text-white/20">MAX: {maxVal.toFixed(1)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-end">
+              <div>
+                <h4 className="text-4xl font-black text-white italic tracking-tighter truncate">
+                   {friendlyName.toLowerCase().includes('km') ? formatKm(val) : (friendlyName.toLowerCase().includes('batería') ? Math.round(parseFloat(val)) : val)}
+                   <span className="text-xs ml-2 text-white/20 uppercase font-black not-italic">{unit}</span>
+                </h4>
+                {isNumeric && hasValues && (
+                  <p className="text-[8px] font-black text-white/10 mt-1 uppercase tracking-widest">MIN: {minVal.toFixed(1)} {unit}</p>
+                )}
+              </div>
+              {isNumeric && chartPoints.length > 0 && (
+                 <div className="flex gap-3 text-[7px] font-black text-white/20 uppercase tracking-[0.2em] pb-1">
+                    <span>{chartPoints[0].time}</span>
+                    <span className="animate-pulse opacity-50">>>></span>
+                    <span>LIVE</span>
+                 </div>
+              )}
+            </div>
+         </div>
       </div>
     );
   };

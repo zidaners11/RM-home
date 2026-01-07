@@ -10,18 +10,6 @@ const formatNexusNum = (val: any) => {
   return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 };
 
-const MicroChart = ({ history, color }: { history: any[], color: string }) => {
-  if (!history || history.length === 0) return <div className="h-full w-full opacity-10 flex items-center justify-center text-[8px]">SIN DATOS</div>;
-  
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={history}>
-        <Area type="monotone" dataKey="val" stroke={color} fill={color} strokeWidth={2} fillOpacity={0.1} dot={false} isAnimationActive={false} />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-};
-
 const EnergyView: React.FC = () => {
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig | null>(null);
   const [states, setStates] = useState<any[]>([]);
@@ -63,7 +51,6 @@ const EnergyView: React.FC = () => {
       const data = await fetchHAStates(config.url, config.token);
       if (data) setStates(data);
 
-      // 1. Gráfico Principal (Placas y Red)
       if (config.solar_production_entity && config.grid_consumption_entity) {
         const solarHist = await fetchHAHistory(config.url, config.token, config.solar_production_entity, 24);
         const gridHist = await fetchHAHistory(config.url, config.token, config.grid_consumption_entity, 24);
@@ -88,17 +75,14 @@ const EnergyView: React.FC = () => {
         setMainHistory(dayData);
       }
 
-      // 2. Gráficos Extra
       if (config.energy_extra_entities && config.energy_extra_entities.length > 0) {
         const newExtraHistories: {[key: string]: any[]} = {};
         for (const id of config.energy_extra_entities) {
           const hist = await fetchHAHistory(config.url, config.token, id, 24);
-          const processed = Array.from({ length: 24 }, (_, i) => ({ hour: i, val: 0 }));
-          
-          hist?.forEach((entry: any) => {
-            const date = new Date(entry.last_changed);
-            if (!isNaN(date.getTime())) processed[date.getHours()].val = Math.max(0, parseFloat(entry.state) || 0);
-          });
+          const processed = (hist || []).map((entry: any) => ({
+            time: new Date(entry.last_changed).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            val: parseFloat(entry.state) || 0
+          })).slice(-30);
           newExtraHistories[id] = processed;
         }
         setExtraHistories(newExtraHistories);
@@ -164,7 +148,7 @@ const EnergyView: React.FC = () => {
 
        <div className="glass p-8 rounded-[50px] border border-white/10 h-[520px] relative shadow-2xl bg-black/40 overflow-hidden">
           <div className="flex justify-between items-center mb-10">
-             <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 italic">Ciclo Diario 00h-24h (W)</h4>
+             <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 italic">Ciclo Diario 24H (Vatios)</h4>
              <div className="flex gap-8">
                 <div className="flex items-center gap-3">
                    <div className="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_15px_#facc15]" />
@@ -178,14 +162,14 @@ const EnergyView: React.FC = () => {
           </div>
           <div className="h-[380px]">
              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mainHistory} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart data={mainHistory} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                    <defs>
                       <linearGradient id="colorSolar" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.15}/>
+                        <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.25}/>
                         <stop offset="95%" stopColor="#fbbf24" stopOpacity={0}/>
                       </linearGradient>
                       <linearGradient id="colorGrid" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                       </linearGradient>
                    </defs>
@@ -199,12 +183,12 @@ const EnergyView: React.FC = () => {
                    />
                    <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.2)', fontSize: 10}} width={50} />
                    <Tooltip 
-                      contentStyle={{backgroundColor: 'rgba(2, 6, 23, 0.95)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '24px', fontSize: '11px', color: 'white', backdropFilter: 'blur(10px)'}}
-                      itemStyle={{padding: '4px 0'}}
+                      contentStyle={{backgroundColor: 'rgba(2, 6, 23, 0.95)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '24px', fontSize: '11px', color: 'white', backdropFilter: 'blur(15px)'}}
+                      itemStyle={{padding: '4px 0', textTransform: 'uppercase', fontWeight: 'bold'}}
                       cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
                    />
-                   <Area type="monotone" name="Placas" dataKey="solar" stroke="#fbbf24" fillOpacity={1} fill="url(#colorSolar)" strokeWidth={4} dot={false} isAnimationActive={true} />
-                   <Area type="monotone" name="Red" dataKey="grid" stroke="#3b82f6" fillOpacity={1} fill="url(#colorGrid)" strokeWidth={4} strokeDasharray="5 5" dot={false} isAnimationActive={true} />
+                   <Area type="monotone" name="Producción Solar" dataKey="solar" stroke="#fbbf24" fillOpacity={1} fill="url(#colorSolar)" strokeWidth={4} dot={false} isAnimationActive={true} />
+                   <Area type="monotone" name="Consumo Red" dataKey="grid" stroke="#3b82f6" fillOpacity={1} fill="url(#colorGrid)" strokeWidth={4} strokeDasharray="5 5" dot={false} isAnimationActive={true} />
                 </AreaChart>
              </ResponsiveContainer>
           </div>
@@ -214,21 +198,37 @@ const EnergyView: React.FC = () => {
           <div className="space-y-6">
              <div className="flex items-center gap-6 px-4">
                 <div className="h-px flex-1 bg-white/10" />
-                <h4 className="text-[10px] font-black uppercase tracking-[0.6em] text-white/20 italic">Consumos Específicos (24h)</h4>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.6em] text-white/20 italic">Sensores Inteligentes (24h)</h4>
                 <div className="h-px flex-1 bg-white/10" />
              </div>
-             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 px-2">
+             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6 px-2">
                 {(haConfig?.energy_extra_entities || []).map((id, i) => {
                    const s = states.find(st => st.entity_id === id);
                    const color = extraColors[i % extraColors.length];
+                   const hist = extraHistories[id] || [];
+                   const vals = hist.map(h => h.val);
+                   const maxVal = vals.length ? Math.max(...vals) : 0;
+
                    return (
-                      <div key={id} className="glass p-6 rounded-[40px] border border-white/5 hover:bg-white/[0.04] transition-all flex flex-col justify-between h-[160px] relative overflow-hidden group">
-                         <div className="relative z-10 flex flex-col justify-between h-full">
-                            <p className="text-[9px] text-white/30 uppercase font-black tracking-widest truncate">{s?.attributes?.friendly_name || id.split('.')[1]}</p>
-                            <h4 className="text-3xl font-black text-white italic tracking-tighter">{formatNexusNum(s?.state)}<span className="text-[10px] ml-1 text-white/20 uppercase not-italic">W</span></h4>
+                      <div key={id} className="glass p-6 rounded-[40px] border border-white/5 hover:bg-white/[0.04] transition-all flex flex-col justify-between h-[180px] relative overflow-hidden group">
+                         <div className="relative z-10 flex flex-col justify-between h-full pointer-events-none">
+                            <div>
+                               <p className="text-[9px] text-white/30 uppercase font-black tracking-widest truncate">{s?.attributes?.friendly_name || id.split('.')[1]}</p>
+                               <h4 className="text-3xl font-black text-white italic tracking-tighter mt-1">{formatNexusNum(s?.state)}<span className="text-[10px] ml-1 text-white/20 uppercase not-italic">W</span></h4>
+                            </div>
+                            <p className="text-[8px] font-black text-white/10 uppercase tracking-widest">Pico 24h: {maxVal.toFixed(0)}W</p>
                          </div>
-                         <div className="absolute inset-x-0 bottom-0 h-16 z-0 opacity-50 group-hover:opacity-100 transition-opacity">
-                            <MicroChart history={extraHistories[id] || []} color={color} />
+                         <div className="absolute inset-0 z-0 opacity-40 group-hover:opacity-70 transition-opacity">
+                            <ResponsiveContainer width="100%" height="100%">
+                               <AreaChart data={hist} margin={{ top: 80, right: 0, left: 0, bottom: 0 }}>
+                                  <Tooltip 
+                                    contentStyle={{backgroundColor: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '10px', fontSize: '9px'}}
+                                    labelStyle={{display: 'none'}}
+                                    cursor={{stroke: color, strokeWidth: 1}}
+                                  />
+                                  <Area type="monotone" dataKey="val" stroke={color} fill={color} strokeWidth={2} fillOpacity={0.1} isAnimationActive={false} />
+                               </AreaChart>
+                            </ResponsiveContainer>
                          </div>
                       </div>
                    );
