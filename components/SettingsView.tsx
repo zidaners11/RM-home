@@ -21,7 +21,7 @@ const SettingsView: React.FC = () => {
     solar_monthly_entity: '',
     grid_consumption_entity: '',
     grid_export_entity: '',
-    house_consumption_entity: '', // Inicializado
+    house_consumption_entity: '', 
     energy_cost_entity: '',
     energy_extra_entities: [],
     car_battery_entity: '',
@@ -35,7 +35,11 @@ const SettingsView: React.FC = () => {
       tracker_entity: '', user_entity: '', 
       fuel_unit: 'liters', tank_capacity: 42 
     },
-    weather_nodes: { torrejon: {}, navalacruz: {}, santibanez: {} }
+    weather_nodes: { 
+      torrejon: { temp_entity: '', humidity_entity: '', wind_entity: '', camera_entity: '' }, 
+      navalacruz: { temp_entity: '', humidity_entity: '', wind_entity: '', camera_entity: '' }, 
+      santibanez: { temp_entity: '', humidity_entity: '', wind_entity: '', camera_entity: '' } 
+    }
   };
 
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig>(INITIAL_HA_CONFIG);
@@ -81,7 +85,7 @@ const SettingsView: React.FC = () => {
       title: type === 'sensor' ? 'Nuevo Sensor' : type === 'chart' ? 'Nueva Gráfica' : 'Nuevo Botón',
       colSpan: 1
     };
-    setHaConfig({ ...haConfig, dashboardWidgets: [...haConfig.dashboardWidgets, newWidget] });
+    setHaConfig({ ...haConfig, dashboardWidgets: [...(haConfig.dashboardWidgets || []), newWidget] });
   };
 
   const removeWidget = (id: string) => {
@@ -92,6 +96,16 @@ const SettingsView: React.FC = () => {
     setHaConfig({
       ...haConfig,
       dashboardWidgets: haConfig.dashboardWidgets.map(w => w.id === id ? { ...w, ...updates } : w)
+    });
+  };
+
+  const updateWeatherNode = (node: string, field: string, val: string) => {
+    setHaConfig({
+      ...haConfig,
+      weather_nodes: {
+        ...haConfig.weather_nodes,
+        [node]: { ...haConfig.weather_nodes[node], [field]: val }
+      }
     });
   };
 
@@ -138,7 +152,8 @@ const SettingsView: React.FC = () => {
                   <div key={s.entity_id} onClick={() => {
                     if(multi) {
                       const current = Array.isArray(value) ? value : [];
-                      onChange(isSelected ? current.filter((x:any) => x !== s.entity_id) : [...current, s.entity_id]);
+                      const newValue = isSelected ? current.filter((x:any) => x !== s.entity_id) : [...current, s.entity_id];
+                      onChange(newValue);
                     } else {
                       onChange(s.entity_id); setIsOpen(false);
                     }
@@ -178,8 +193,8 @@ const SettingsView: React.FC = () => {
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {haConfig.dashboardWidgets.map((w) => (
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {(haConfig.dashboardWidgets || []).map((w) => (
                     <div key={w.id} className="p-6 glass rounded-[35px] border border-white/5 space-y-4 relative group bg-white/[0.01]">
                        <button onClick={() => removeWidget(w.id)} className="absolute top-4 right-4 text-white/10 hover:text-red-500 transition-colors">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2"/></svg>
@@ -193,13 +208,18 @@ const SettingsView: React.FC = () => {
                           />
                        </div>
                        <EntitySelector 
-                         label="Entidad" 
+                         label="Entidad vinculada" 
                          value={w.entity_id} 
                          onChange={(v:string) => updateWidget(w.id, { entity_id: v })}
                          filterPrefix={w.type === 'button' ? 'script.' : 'sensor.'}
                        />
                     </div>
                   ))}
+                  {(haConfig.dashboardWidgets || []).length === 0 && (
+                    <div className="col-span-full py-16 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-[40px] opacity-20">
+                      <p className="text-[10px] font-black uppercase tracking-widest">Dashboard vacío. Añade tu primer widget.</p>
+                    </div>
+                  )}
                </div>
             </div>
           )}
@@ -207,17 +227,67 @@ const SettingsView: React.FC = () => {
           {activeTab === 'energy' && (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">Matriz Energética Core</h4>
-                <EntitySelector label="Consumo de Casa (W) - Sensor Manual" value={haConfig.house_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, house_consumption_entity: v})} />
-                <EntitySelector label="Producción Solar Instantánea (W)" value={haConfig.solar_production_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_production_entity: v})} />
-                <EntitySelector label="Consumo de Red Instantáneo (W)" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} />
-                <EntitySelector label="Exportación a Red (W)" value={haConfig.grid_export_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_export_entity: v})} />
-                <EntitySelector label="Energía Solar Diaria (kWh)" value={haConfig.solar_daily_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_daily_entity: v})} />
-                <EntitySelector label="Energía Solar Mensual (kWh)" value={haConfig.solar_monthly_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_monthly_entity: v})} />
-                <EntitySelector label="Coste Energía Actual (€)" value={haConfig.energy_cost_entity} onChange={(v:any) => setHaConfig({...haConfig, energy_cost_entity: v})} />
-                <div className="col-span-full pt-6">
-                   <h4 className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 mb-4 ml-3">Sensores de Consumo Específicos (Con Gráfica 24h)</h4>
-                   <EntitySelector label="Añadir Consumos Auxiliares" multi value={haConfig.energy_extra_entities} onChange={(v:any) => setHaConfig({...haConfig, energy_extra_entities: v})} />
+                <EntitySelector label="Consumo de Casa (W) - Sensor Manual" value={haConfig.house_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, house_consumption_entity: v})} filterPrefix="sensor." />
+                <EntitySelector label="Producción Solar Instantánea (W)" value={haConfig.solar_production_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_production_entity: v})} filterPrefix="sensor." />
+                <EntitySelector label="Consumo de Red Instantáneo (W)" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} filterPrefix="sensor." />
+                <EntitySelector label="Exportación a Red (W)" value={haConfig.grid_export_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_export_entity: v})} filterPrefix="sensor." />
+                <EntitySelector label="Energía Solar Diaria (kWh)" value={haConfig.solar_daily_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_daily_entity: v})} filterPrefix="sensor." />
+                <EntitySelector label="Energía Solar Mensual (kWh)" value={haConfig.solar_monthly_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_monthly_entity: v})} filterPrefix="sensor." />
+                <EntitySelector label="Coste Energía Actual (€)" value={haConfig.energy_cost_entity} onChange={(v:any) => setHaConfig({...haConfig, energy_cost_entity: v})} filterPrefix="sensor." />
+                
+                <div className="col-span-full pt-8 border-t border-white/5 mt-4">
+                   <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white italic mb-4">Sensores Auxiliares (Micro-Gráficos 24h)</h4>
+                   <EntitySelector multi label="Seleccionar Entidades de Consumo (Multi)" value={haConfig.energy_extra_entities || []} onChange={(v:any) => setHaConfig({...haConfig, energy_extra_entities: v})} filterPrefix="sensor." />
                 </div>
+             </div>
+          )}
+
+          {activeTab === 'security' && (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-red-500 italic">Protocolo Sentinel - Seguridad</h4>
+               <EntitySelector multi label="Cámaras de Seguridad" value={haConfig.security_cameras} onChange={(v:any) => setHaConfig({...haConfig, security_cameras: v})} filterPrefix="camera." />
+               <EntitySelector multi label="Sensores de Apertura/Movimiento" value={haConfig.security_sensors} onChange={(v:any) => setHaConfig({...haConfig, security_sensors: v})} filterPrefix="binary_sensor." />
+               <EntitySelector label="Entidad Alarma" value={haConfig.alarm_entity} onChange={(v:any) => setHaConfig({...haConfig, alarm_entity: v})} filterPrefix="alarm_control_panel." />
+             </div>
+          )}
+
+          {activeTab === 'weather' && (
+             <div className="space-y-12">
+               {['torrejon', 'navalacruz', 'santibanez'].map(node => (
+                 <div key={node} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-6 glass rounded-[35px] border border-white/5">
+                   <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic mb-4">Nodo Meteorológico: {node.toUpperCase()}</h4>
+                   <EntitySelector label="Temperatura" value={haConfig.weather_nodes?.[node]?.temp_entity} onChange={(v:any) => updateWeatherNode(node, 'temp_entity', v)} filterPrefix="sensor." />
+                   <EntitySelector label="Humedad" value={haConfig.weather_nodes?.[node]?.humidity_entity} onChange={(v:any) => updateWeatherNode(node, 'humidity_entity', v)} filterPrefix="sensor." />
+                   <EntitySelector label="Viento" value={haConfig.weather_nodes?.[node]?.wind_entity} onChange={(v:any) => updateWeatherNode(node, 'wind_entity', v)} filterPrefix="sensor." />
+                   <EntitySelector label="Cámara / Webcam" value={haConfig.weather_nodes?.[node]?.camera_entity} onChange={(v:any) => updateWeatherNode(node, 'camera_entity', v)} filterPrefix="camera." />
+                 </div>
+               ))}
+             </div>
+          )}
+
+          {activeTab === 'finance' && (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-green-500 italic">Nexus Finance - Google Sheets Bridge</h4>
+               <div className="col-span-full space-y-4">
+                 <div className="flex items-center gap-4 mb-4">
+                   <input type="checkbox" checked={haConfig.finance.use_sheets_mirror} onChange={e => setHaConfig({...haConfig, finance: {...haConfig.finance, use_sheets_mirror: e.target.checked}})} className="w-5 h-5 rounded bg-white/10" />
+                   <label className="text-xs text-white/60 font-black uppercase">Usar Mirror de Google Sheets (CSV)</label>
+                 </div>
+                 <div className="space-y-2">
+                   <label className="text-[9px] uppercase font-black text-white/20 ml-4">URL CSV Google Sheets</label>
+                   <input value={haConfig.finance.sheets_csv_url} onChange={e => setHaConfig({...haConfig, finance: {...haConfig.finance, sheets_csv_url: e.target.value}})} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white border border-white/5 outline-none focus:border-blue-500/50" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv" />
+                 </div>
+               </div>
+             </div>
+          )}
+
+          {activeTab === 'radar' && (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-purple-500 italic">Sentinel Radar - Localización</h4>
+               <EntitySelector multi label="Personas a Rastrear (Tracked People)" value={haConfig.tracked_people} onChange={(v:any) => setHaConfig({...haConfig, tracked_people: v})} filterPrefix="person." />
+               <p className="col-span-full text-[9px] text-white/20 uppercase tracking-widest leading-loose">
+                 * El radar utiliza las entidades de tipo "person" para obtener coordenadas GPS y mostrar el historial de 24h.
+               </p>
              </div>
           )}
 
@@ -245,6 +315,10 @@ const SettingsView: React.FC = () => {
                <div className="space-y-2">
                  <label className="text-[9px] uppercase font-black text-white/20 ml-4">Long Lived Access Token</label>
                  <input type="password" value={haConfig.token} onChange={e => setHaConfig({...haConfig, token: e.target.value})} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white border border-white/5 outline-none" />
+               </div>
+               <div className="col-span-full space-y-2">
+                 <label className="text-[9px] uppercase font-black text-white/20 ml-4">URL Fondo de Pantalla Personalizado</label>
+                 <input value={haConfig.custom_bg_url} onChange={e => setHaConfig({...haConfig, custom_bg_url: e.target.value})} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white border border-white/5 outline-none" placeholder="https://..." />
                </div>
             </div>
           )}
