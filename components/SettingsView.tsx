@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { HomeAssistantConfig, WidgetConfig, WidgetType } from '../types';
-import { fetchHAStates, DEFAULT_HA_URL, DEFAULT_HA_TOKEN, saveMasterConfig } from '../homeAssistantService';
+import { HomeAssistantConfig, WidgetConfig, WidgetType, CustomFinanceWidget } from '../types';
+import { fetchHAStates, DEFAULT_HA_URL, DEFAULT_HA_TOKEN, saveMasterConfig, fetchMasterConfig } from '../homeAssistantService';
 
 const SettingsView: React.FC = () => {
   type TabType = 'dashboard' | 'energy' | 'vehicle' | 'security' | 'weather' | 'finance' | 'radar' | 'core';
@@ -26,7 +26,7 @@ const SettingsView: React.FC = () => {
     energy_extra_entities: [],
     car_battery_entity: '',
     custom_bg_url: 'https://i.redd.it/6qq8lk9qjqp21.jpg',
-    finance: { use_sheets_mirror: true, sheets_csv_url: '' },
+    finance: { use_sheets_mirror: true, sheets_csv_url: '', custom_widgets: [] },
     vehicle: { 
       battery_entity: '', range_entity: '', odometer_entity: '', fuel_entity: '', fuel_range_entity: '', service_km_entity: '', saving_entity: '',
       electric_use_entity: '', avg_consumption_entity: '', time_to_charge_entity: '', charge_limit_entity: '', plug_status_entity: '',
@@ -45,28 +45,49 @@ const SettingsView: React.FC = () => {
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig>(INITIAL_HA_CONFIG);
   const [haStates, setHaStates] = useState<any[]>([]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadSettings();
   }, []);
 
-  const loadSettings = () => {
-    const savedHA = localStorage.getItem('nexus_ha_config');
-    if (savedHA) {
-      try {
-        const parsed = JSON.parse(savedHA);
-        setHaConfig({
-          ...INITIAL_HA_CONFIG,
-          ...parsed,
-          dashboardWidgets: parsed.dashboardWidgets || [],
-          vehicle: { ...INITIAL_HA_CONFIG.vehicle, ...(parsed.vehicle || {}) },
-          finance: { ...INITIAL_HA_CONFIG.finance, ...(parsed.finance || {}) },
-          weather_nodes: { ...INITIAL_HA_CONFIG.weather_nodes, ...(parsed.weather_nodes || {}) }
-        });
-        loadHAEntities(parsed.url || DEFAULT_HA_URL, parsed.token || DEFAULT_HA_TOKEN);
-      } catch (e) { console.error("Restore failed", e); }
-    } else {
-      loadHAEntities(DEFAULT_HA_URL, DEFAULT_HA_TOKEN);
+  const loadSettings = async () => {
+    setIsLoading(true);
+    const username = localStorage.getItem('nexus_user') || 'guest';
+    const savedLocal = localStorage.getItem('nexus_ha_config');
+    
+    let currentUrl = DEFAULT_HA_URL;
+    let currentToken = DEFAULT_HA_TOKEN;
+
+    if (savedLocal) {
+        try {
+            const parsed = JSON.parse(savedLocal);
+            currentUrl = parsed.url || DEFAULT_HA_URL;
+            currentToken = parsed.token || DEFAULT_HA_TOKEN;
+            setHaConfig(prev => ({ ...prev, ...parsed }));
+        } catch (e) {}
+    }
+
+    try {
+        const cloudConfig = await fetchMasterConfig(username, currentUrl, currentToken);
+        if (cloudConfig) {
+            const mergedConfig = {
+                ...INITIAL_HA_CONFIG,
+                ...cloudConfig,
+                vehicle: { ...INITIAL_HA_CONFIG.vehicle, ...(cloudConfig.vehicle || {}) },
+                finance: { ...INITIAL_HA_CONFIG.finance, ...(cloudConfig.finance || {}) },
+                weather_nodes: { ...INITIAL_HA_CONFIG.weather_nodes, ...(cloudConfig.weather_nodes || {}) }
+            };
+            setHaConfig(mergedConfig);
+            localStorage.setItem('nexus_ha_config', JSON.stringify(mergedConfig));
+            await loadHAEntities(mergedConfig.url, mergedConfig.token);
+        } else {
+            await loadHAEntities(currentUrl, currentToken);
+        }
+    } catch (e) {
+        console.error("Cloud load failed", e);
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -75,6 +96,24 @@ const SettingsView: React.FC = () => {
       const states = await fetchHAStates(url, token);
       if (states) setHaStates(states);
     } catch (e) { }
+  };
+
+  const handleSave = async () => {
+    setStatus('saving');
+    const username = localStorage.getItem('nexus_user') || 'guest';
+    try {
+      const success = await saveMasterConfig(username, haConfig, haConfig.url, haConfig.token);
+      if (success) {
+        localStorage.setItem('nexus_ha_config', JSON.stringify(haConfig));
+        setStatus('success');
+        setTimeout(() => setStatus('idle'), 2000);
+      } else { 
+        throw new Error("FAIL"); 
+      }
+    } catch (err) {
+      setStatus('error');
+      setTimeout(() => setStatus('idle'), 3000);
+    }
   };
 
   const addWidget = (type: WidgetType) => {
@@ -90,8 +129,42 @@ const SettingsView: React.FC = () => {
     setHaConfig({ ...haConfig, dashboardWidgets: [...(haConfig.dashboardWidgets || []), newWidget] });
   };
 
-  const removeWidget = (id: string) => {
-    setHaConfig({ ...haConfig, dashboardWidgets: haConfig.dashboardWidgets.filter(w => w.id !== id) });
+  const addFinanceKPI = () => {
+    const newKPI: CustomFinanceWidget = {
+      id: `kpi_${Date.now()}`,
+      type: 'kpi',
+      title: 'Nuevo KPI',
+      cell: 'A1',
+      color: 'blue',
+      unit: '€'
+    };
+    setHaConfig({
+      ...haConfig,
+      finance: {
+        ...haConfig.finance,
+        custom_widgets: [...(haConfig.finance.custom_widgets || []), newKPI]
+      }
+    });
+  };
+
+  const updateFinanceKPI = (id: string, updates: Partial<CustomFinanceWidget>) => {
+    setHaConfig({
+      ...haConfig,
+      finance: {
+        ...haConfig.finance,
+        custom_widgets: (haConfig.finance.custom_widgets || []).map(w => w.id === id ? { ...w, ...updates } : w)
+      }
+    });
+  };
+
+  const removeFinanceKPI = (id: string) => {
+    setHaConfig({
+      ...haConfig,
+      finance: {
+        ...haConfig.finance,
+        custom_widgets: (haConfig.finance.custom_widgets || []).filter(w => w.id !== id)
+      }
+    });
   };
 
   const updateWidget = (id: string, updates: Partial<WidgetConfig>) => {
@@ -99,6 +172,10 @@ const SettingsView: React.FC = () => {
       ...haConfig,
       dashboardWidgets: haConfig.dashboardWidgets.map(w => w.id === id ? { ...w, ...updates } : w)
     });
+  };
+
+  const updateVehicle = (field: keyof typeof haConfig.vehicle, val: any) => {
+    setHaConfig({ ...haConfig, vehicle: { ...haConfig.vehicle, [field]: val } });
   };
 
   const updateWeatherNode = (node: string, field: string, val: string) => {
@@ -111,25 +188,10 @@ const SettingsView: React.FC = () => {
     });
   };
 
-  const handleSave = async () => {
-    setStatus('saving');
-    const username = localStorage.getItem('nexus_user') || 'guest';
-    try {
-      const syncSuccess = await saveMasterConfig(username, haConfig, haConfig.url, haConfig.token);
-      if (syncSuccess) {
-        localStorage.setItem('nexus_ha_config', JSON.stringify(haConfig));
-        setStatus('success');
-        setTimeout(() => window.location.reload(), 1500);
-      } else { throw new Error("SYNC_FAILED"); }
-    } catch (err) {
-      setStatus('error');
-      setTimeout(() => setStatus('idle'), 3000);
-    }
-  };
-
   const EntitySelector = ({ label, value, onChange, multi = false, filterPrefix = '' }: any) => {
     const [search, setSearch] = useState('');
     const [isOpen, setIsOpen] = useState(false);
+    
     const filtered = (haStates || []).filter(s => {
       const matchesSearch = s.entity_id.toLowerCase().includes(search.toLowerCase()) ||
                           (s.attributes.friendly_name || '').toLowerCase().includes(search.toLowerCase());
@@ -138,20 +200,23 @@ const SettingsView: React.FC = () => {
     }).slice(0, 50);
 
     return (
-      <div className="space-y-1 relative">
+      <div className="space-y-1 relative w-full">
         <label className="text-[9px] font-black uppercase text-blue-400/60 ml-3 tracking-widest">{label}</label>
-        <div onClick={() => setIsOpen(!isOpen)} className="w-full glass bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-[11px] text-white cursor-pointer flex justify-between items-center hover:bg-white/10 transition-all">
-           <span className="truncate text-white/90 italic">{multi ? `${(value || []).length} seleccionadas` : (value || '---')}</span>
+        <div onClick={() => setIsOpen(!isOpen)} className="w-full glass bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-[11px] text-white cursor-pointer flex justify-between items-center hover:bg-white/10 transition-all min-h-[44px]">
+           <span className="truncate text-white/90 italic">
+             {multi ? `${(Array.isArray(value) ? value.length : 0)} seleccionadas` : (value || 'Seleccionar entidad...')}
+           </span>
            <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180 text-blue-400' : 'text-white/20'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
         {isOpen && (
           <div className="absolute z-[300] w-full mt-2 glass-dark border border-white/20 rounded-2xl p-4 shadow-2xl backdrop-blur-3xl">
-            <input autoFocus placeholder="Filtrar..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-2 text-[11px] text-white mb-3 outline-none" />
+            <input autoFocus placeholder="Filtrar entidades..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-2 text-[11px] text-white mb-3 outline-none" />
             <div className="max-h-56 overflow-y-auto no-scrollbar space-y-1">
               {filtered.map(s => {
                 const isSelected = multi ? (Array.isArray(value) && value.includes(s.entity_id)) : value === s.entity_id;
                 return (
-                  <div key={s.entity_id} onClick={() => {
+                  <div key={s.entity_id} onClick={(e) => {
+                    e.stopPropagation();
                     if(multi) {
                       const current = Array.isArray(value) ? value : [];
                       const newValue = isSelected ? current.filter((x:any) => x !== s.entity_id) : [...current, s.entity_id];
@@ -159,8 +224,9 @@ const SettingsView: React.FC = () => {
                     } else {
                       onChange(s.entity_id); setIsOpen(false);
                     }
-                  }} className={`px-4 py-2 rounded-xl cursor-pointer text-[10px] ${isSelected ? 'bg-blue-600 text-white' : 'hover:bg-white/5 text-white/40'}`}>
-                    {s.attributes.friendly_name || s.entity_id}
+                  }} className={`px-4 py-2 rounded-xl cursor-pointer text-[10px] flex justify-between items-center ${isSelected ? 'bg-blue-600 text-white' : 'hover:bg-white/5 text-white/40'}`}>
+                    <span className="truncate mr-2">{s.attributes.friendly_name || s.entity_id}</span>
+                    <span className="opacity-30 text-[8px] shrink-0">{s.entity_id}</span>
                   </div>
                 );
               })}
@@ -170,6 +236,15 @@ const SettingsView: React.FC = () => {
       </div>
     );
   };
+
+  if (isLoading) {
+      return (
+          <div className="h-full flex flex-col items-center justify-center">
+              <div className="w-12 h-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-blue-400 font-black text-[9px] uppercase tracking-[0.4em] animate-pulse">Inyectando Protocolos Nexus...</p>
+          </div>
+      );
+  }
 
   return (
     <div className="h-full flex flex-col gap-6 pb-24 overflow-hidden animate-in fade-in">
@@ -194,141 +269,145 @@ const SettingsView: React.FC = () => {
                      <button onClick={() => addWidget('button')} className="px-4 py-2 bg-green-600/20 text-green-400 rounded-xl text-[8px] font-black border border-green-400/20 hover:bg-green-600/40 transition-all">+ BOTÓN</button>
                   </div>
                </div>
-
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {(haConfig.dashboardWidgets || []).map((w) => (
-                    <div key={w.id} className="p-6 glass rounded-[35px] border border-white/5 space-y-4 relative group bg-white/[0.01]">
-                       <button onClick={() => removeWidget(w.id)} className="absolute top-4 right-4 text-white/10 hover:text-red-500 transition-colors">
+                    <div key={w.id} className="p-6 glass rounded-[35px] border border-white/5 space-y-4 relative group">
+                       <button onClick={() => setHaConfig({...haConfig, dashboardWidgets: haConfig.dashboardWidgets.filter(x => x.id !== w.id)})} className="absolute top-4 right-4 text-white/10 hover:text-red-500 transition-colors">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2"/></svg>
                        </button>
-                       <div className="flex items-center gap-3">
-                          <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest ${w.type === 'sensor' ? 'bg-blue-500/20 text-blue-400' : w.type === 'chart' ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400'}`}>{w.type}</span>
-                          <input 
-                            value={w.title} 
-                            onChange={e => updateWidget(w.id, { title: e.target.value })}
-                            className="bg-transparent border-none text-[11px] font-black uppercase text-white outline-none w-full"
-                          />
-                       </div>
-                       
+                       <input value={w.title} onChange={e => updateWidget(w.id, {title: e.target.value})} className="bg-transparent text-[11px] font-black uppercase text-white outline-none mb-2 w-full border-b border-white/5 pb-1" placeholder="Nombre del Widget" />
                        <EntitySelector 
                          label="Entidad vinculada" 
                          value={w.entity_id} 
                          onChange={(v:string) => updateWidget(w.id, { entity_id: v })}
-                         filterPrefix={w.type === 'button' ? 'script.' : 'sensor.'}
+                         filterPrefix={w.type === 'button' ? 'script.' : ''}
                        />
-
-                       {w.type === 'chart' && (
-                         <div className="grid grid-cols-2 gap-4 mt-2">
-                            <div className="space-y-1">
-                               <label className="text-[8px] font-black text-white/20 uppercase tracking-widest ml-2">Horas Historial</label>
-                               <input 
-                                 type="number" 
-                                 value={w.historyHours || 24} 
-                                 onChange={e => updateWidget(w.id, { historyHours: parseInt(e.target.value) || 24 })}
-                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white outline-none"
-                               />
-                            </div>
-                            <div className="space-y-1">
-                               <label className="text-[8px] font-black text-white/20 uppercase tracking-widest ml-2">Puntos Visuales</label>
-                               <input 
-                                 type="number" 
-                                 value={w.historyPoints || 30} 
-                                 onChange={e => updateWidget(w.id, { historyPoints: parseInt(e.target.value) || 30 })}
-                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white outline-none"
-                               />
-                            </div>
-                         </div>
-                       )}
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                             <label className="text-[8px] uppercase text-white/20 font-black ml-2">Horas Hist.</label>
+                             <input type="number" value={w.historyHours} onChange={e => updateWidget(w.id, {historyHours: parseInt(e.target.value)})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white" />
+                          </div>
+                          <div className="space-y-1">
+                             <label className="text-[8px] uppercase text-white/20 font-black ml-2">Puntos</label>
+                             <input type="number" value={w.historyPoints} onChange={e => updateWidget(w.id, {historyPoints: parseInt(e.target.value)})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white" />
+                          </div>
+                       </div>
                     </div>
                   ))}
-                  {(haConfig.dashboardWidgets || []).length === 0 && (
-                    <div className="col-span-full py-16 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-[40px] opacity-20">
-                      <p className="text-[10px] font-black uppercase tracking-widest">Dashboard vacío. Añade tu primer widget.</p>
-                    </div>
-                  )}
                </div>
             </div>
           )}
 
           {activeTab === 'energy' && (
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">Matriz Energética Core</h4>
-                <EntitySelector label="Consumo de Casa (W) - Sensor Manual" value={haConfig.house_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, house_consumption_entity: v})} filterPrefix="sensor." />
-                <EntitySelector label="Producción Solar Instantánea (W)" value={haConfig.solar_production_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_production_entity: v})} filterPrefix="sensor." />
-                <EntitySelector label="Consumo de Red Instantáneo (W)" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} filterPrefix="sensor." />
-                <EntitySelector label="Exportación a Red (W)" value={haConfig.grid_export_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_export_entity: v})} filterPrefix="sensor." />
-                <EntitySelector label="Energía Solar Diaria (kWh)" value={haConfig.solar_daily_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_daily_entity: v})} filterPrefix="sensor." />
-                <EntitySelector label="Energía Solar Mensual (kWh)" value={haConfig.solar_monthly_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_monthly_entity: v})} filterPrefix="sensor." />
-                <EntitySelector label="Coste Energía Actual (€)" value={haConfig.energy_cost_entity} onChange={(v:any) => setHaConfig({...haConfig, energy_cost_entity: v})} filterPrefix="sensor." />
-                
-                <div className="col-span-full pt-8 border-t border-white/5 mt-4">
-                   <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white italic mb-4">Sensores Auxiliares (Micro-Gráficos 24h)</h4>
-                   <EntitySelector multi label="Seleccionar Entidades de Consumo (Multi)" value={haConfig.energy_extra_entities || []} onChange={(v:any) => setHaConfig({...haConfig, energy_extra_entities: v})} filterPrefix="sensor." />
-                </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">Matriz Energética</h4>
+               <EntitySelector label="Producción Solar Actual (W)" value={haConfig.solar_production_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_production_entity: v})} />
+               <EntitySelector label="Consumo de Red Actual (W)" value={haConfig.grid_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, grid_consumption_entity: v})} />
+               <EntitySelector label="Consumo Casa (Manual/Opcional)" value={haConfig.house_consumption_entity} onChange={(v:any) => setHaConfig({...haConfig, house_consumption_entity: v})} />
+               <EntitySelector label="Energía Solar Diaria (kWh)" value={haConfig.solar_daily_entity} onChange={(v:any) => setHaConfig({...haConfig, solar_daily_entity: v})} />
+               <EntitySelector label="Sensores Extra (Dashboard)" value={haConfig.energy_extra_entities} multi onChange={(v:any) => setHaConfig({...haConfig, energy_extra_entities: v})} filterPrefix="sensor." />
+             </div>
+          )}
+
+          {activeTab === 'vehicle' && (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">Sentinel Vehicle OS</h4>
+               <EntitySelector label="Batería (%)" value={haConfig.vehicle.battery_entity} onChange={(v:any) => updateVehicle('battery_entity', v)} />
+               <EntitySelector label="Autonomía Eléctrica (km)" value={haConfig.vehicle.range_entity} onChange={(v:any) => updateVehicle('range_entity', v)} />
+               <EntitySelector label="Odómetro (km)" value={haConfig.vehicle.odometer_entity} onChange={(v:any) => updateVehicle('odometer_entity', v)} />
+               <EntitySelector label="Nivel Combustible" value={haConfig.vehicle.fuel_entity} onChange={(v:any) => updateVehicle('fuel_entity', v)} />
+               <EntitySelector label="Rastreador GPS" value={haConfig.vehicle.tracker_entity} onChange={(v:any) => updateVehicle('tracker_entity', v)} filterPrefix="device_tracker." />
+               <EntitySelector label="Script Refresco" value={haConfig.vehicle.refresh_script} onChange={(v:any) => updateVehicle('refresh_script', v)} filterPrefix="script." />
+               <div className="col-span-full space-y-2">
+                 <label className="text-[9px] uppercase font-black text-white/20 ml-4">URL Imagen Vehículo</label>
+                 <input value={haConfig.vehicle.image_url} onChange={e => updateVehicle('image_url', e.target.value)} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white border border-white/5 outline-none" />
+               </div>
              </div>
           )}
 
           {activeTab === 'security' && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-red-500 italic">Protocolo Sentinel - Seguridad</h4>
-               <EntitySelector multi label="Cámaras de Seguridad" value={haConfig.security_cameras} onChange={(v:any) => setHaConfig({...haConfig, security_cameras: v})} filterPrefix="camera." />
-               <EntitySelector multi label="Sensores de Apertura/Movimiento" value={haConfig.security_sensors} onChange={(v:any) => setHaConfig({...haConfig, security_sensors: v})} filterPrefix="binary_sensor." />
+               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">Perímetro Sentinel</h4>
+               <EntitySelector label="Cámaras de Seguridad" value={haConfig.security_cameras} multi onChange={(v:any) => setHaConfig({...haConfig, security_cameras: v})} filterPrefix="camera." />
+               <EntitySelector label="Sensores Puertas/Movimiento" value={haConfig.security_sensors} multi onChange={(v:any) => setHaConfig({...haConfig, security_sensors: v})} filterPrefix="binary_sensor." />
                <EntitySelector label="Entidad Alarma" value={haConfig.alarm_entity} onChange={(v:any) => setHaConfig({...haConfig, alarm_entity: v})} filterPrefix="alarm_control_panel." />
              </div>
           )}
 
           {activeTab === 'weather' && (
-             <div className="space-y-12">
+             <div className="space-y-10">
+               <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">Nodos Meteorológicos</h4>
                {['torrejon', 'navalacruz', 'santibanez'].map(node => (
-                 <div key={node} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-6 glass rounded-[35px] border border-white/5">
-                   <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic mb-4">Nodo Meteorológico: {node.toUpperCase()}</h4>
-                   <EntitySelector label="Temperatura" value={haConfig.weather_nodes?.[node]?.temp_entity} onChange={(v:any) => updateWeatherNode(node, 'temp_entity', v)} filterPrefix="sensor." />
-                   <EntitySelector label="Humedad" value={haConfig.weather_nodes?.[node]?.humidity_entity} onChange={(v:any) => updateWeatherNode(node, 'humidity_entity', v)} filterPrefix="sensor." />
-                   <EntitySelector label="Viento" value={haConfig.weather_nodes?.[node]?.wind_entity} onChange={(v:any) => updateWeatherNode(node, 'wind_entity', v)} filterPrefix="sensor." />
-                   <EntitySelector label="Cámara / Webcam" value={haConfig.weather_nodes?.[node]?.camera_entity} onChange={(v:any) => updateWeatherNode(node, 'camera_entity', v)} filterPrefix="camera." />
+                 <div key={node} className="glass p-6 rounded-[32px] border border-white/5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <p className="col-span-full text-[9px] font-black uppercase text-white/30 tracking-widest border-b border-white/5 pb-2 mb-2">{node.toUpperCase()}</p>
+                    <EntitySelector label="Temperatura" value={haConfig.weather_nodes[node].temp_entity} onChange={(v:any) => updateWeatherNode(node, 'temp_entity', v)} />
+                    <EntitySelector label="Humedad" value={haConfig.weather_nodes[node].humidity_entity} onChange={(v:any) => updateWeatherNode(node, 'humidity_entity', v)} />
+                    <EntitySelector label="Cámara / Webcam" value={haConfig.weather_nodes[node].camera_entity} onChange={(v:any) => updateWeatherNode(node, 'camera_entity', v)} />
                  </div>
                ))}
              </div>
           )}
 
-          {activeTab === 'finance' && (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-green-500 italic">Nexus Finance - Google Sheets Bridge</h4>
-               <div className="col-span-full space-y-4">
-                 <div className="flex items-center gap-4 mb-4">
-                   <input type="checkbox" checked={haConfig.finance.use_sheets_mirror} onChange={e => setHaConfig({...haConfig, finance: {...haConfig.finance, use_sheets_mirror: e.target.checked}})} className="w-5 h-5 rounded bg-white/10" />
-                   <label className="text-xs text-white/60 font-black uppercase">Usar Mirror de Google Sheets (CSV)</label>
-                 </div>
-                 <div className="space-y-2">
-                   <label className="text-[9px] uppercase font-black text-white/20 ml-4">URL CSV Google Sheets</label>
-                   <input value={haConfig.finance.sheets_csv_url} onChange={e => setHaConfig({...haConfig, finance: {...haConfig.finance, sheets_csv_url: e.target.value}})} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white border border-white/5 outline-none focus:border-blue-500/50" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv" />
-                 </div>
-               </div>
-             </div>
-          )}
-
           {activeTab === 'radar' && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-purple-500 italic">Sentinel Radar - Localización</h4>
-               <EntitySelector multi label="Personas a Rastrear (Tracked People)" value={haConfig.tracked_people} onChange={(v:any) => setHaConfig({...haConfig, tracked_people: v})} filterPrefix="person." />
-               <p className="col-span-full text-[9px] text-white/20 uppercase tracking-widest leading-loose">
-                 * El radar utiliza las entidades de tipo "person" para obtener coordenadas GPS y mostrar el historial de 24h.
-               </p>
+               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">Rastreo Geográfico</h4>
+               <EntitySelector label="Personas a Rastrear" value={haConfig.tracked_people} multi onChange={(v:any) => setHaConfig({...haConfig, tracked_people: v})} filterPrefix="person." />
              </div>
           )}
 
-          {activeTab === 'vehicle' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-               <h4 className="col-span-full text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">Lynk OS 01 Interface</h4>
-               <EntitySelector label="Batería (%)" value={haConfig.vehicle.battery_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, battery_entity: v}})} />
-               <EntitySelector label="Gasolina (Litros)" value={haConfig.vehicle.fuel_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, fuel_entity: v}})} />
-               <EntitySelector label="GPS Tracker" value={haConfig.vehicle.tracker_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, tracker_entity: v}})} filterPrefix="device_tracker." />
-               <EntitySelector label="Kilómetros Totales" value={haConfig.vehicle.odometer_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, odometer_entity: v}})} />
-               <EntitySelector label="Autonomía EV" value={haConfig.vehicle.range_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, range_entity: v}})} />
-               <EntitySelector label="Autonomía GAS" value={haConfig.vehicle.fuel_range_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, fuel_range_entity: v}})} />
-               <EntitySelector label="Bloqueo Puertas" value={haConfig.vehicle.lock_entity} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, lock_entity: v}})} filterPrefix="lock." />
-               <EntitySelector label="Script de Refresco" value={haConfig.vehicle.refresh_script} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, refresh_script: v}})} filterPrefix="script." />
-            </div>
+          {activeTab === 'finance' && (
+             <div className="space-y-10">
+               <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">Finanzas & Matriz Google</h4>
+               <div className="space-y-2">
+                 <label className="text-[9px] uppercase font-black text-white/20 ml-4">Google Sheets CSV URL (Mirror)</label>
+                 <input value={haConfig.finance.sheets_csv_url} onChange={e => setHaConfig({...haConfig, finance: {...haConfig.finance, sheets_csv_url: e.target.value}})} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white border border-white/5 outline-none" />
+               </div>
+
+               <div className="space-y-8">
+                  <div className="flex justify-between items-center border-t border-white/5 pt-8">
+                     <h5 className="text-[9px] font-black uppercase text-blue-400 tracking-widest">RM Custom KPIs (Telemetría de Celda)</h5>
+                     <button onClick={addFinanceKPI} className="px-4 py-2 bg-blue-600/20 text-blue-400 rounded-xl text-[8px] font-black border border-blue-400/20">+ AÑADIR MÉTRICA</button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     {(haConfig.finance.custom_widgets || []).map(kpi => (
+                        <div key={kpi.id} className="glass p-6 rounded-[30px] border border-white/5 space-y-4 relative">
+                           <button onClick={() => removeFinanceKPI(kpi.id)} className="absolute top-4 right-4 text-white/10 hover:text-red-500">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2"/></svg>
+                           </button>
+                           
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                 <label className="text-[8px] uppercase text-white/20 font-black">Título</label>
+                                 <input value={kpi.title} onChange={e => updateFinanceKPI(kpi.id, {title: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white" />
+                              </div>
+                              <div className="space-y-1">
+                                 <label className="text-[8px] uppercase text-white/20 font-black">Celda (Ej: J13)</label>
+                                 <input value={kpi.cell} onChange={e => updateFinanceKPI(kpi.id, {cell: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white" />
+                              </div>
+                           </div>
+                           
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                 <label className="text-[8px] uppercase text-white/20 font-black">Unidad (Ej: €)</label>
+                                 <input value={kpi.unit} onChange={e => updateFinanceKPI(kpi.id, {unit: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white" />
+                              </div>
+                              <div className="space-y-1">
+                                 <label className="text-[8px] uppercase text-white/20 font-black">Color Acento</label>
+                                 <select value={kpi.color} onChange={e => updateFinanceKPI(kpi.id, {color: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-white outline-none">
+                                    <option value="blue">Azul</option>
+                                    <option value="green">Verde</option>
+                                    <option value="orange">Naranja</option>
+                                    <option value="purple">Púrpura</option>
+                                    <option value="red">Rojo</option>
+                                 </select>
+                              </div>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+             </div>
           )}
 
           {activeTab === 'core' && (
@@ -343,17 +422,18 @@ const SettingsView: React.FC = () => {
                  <input type="password" value={haConfig.token} onChange={e => setHaConfig({...haConfig, token: e.target.value})} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white border border-white/5 outline-none" />
                </div>
                <div className="col-span-full space-y-2">
-                 <label className="text-[9px] uppercase font-black text-white/20 ml-4">URL Fondo de Pantalla Personalizado</label>
-                 <input value={haConfig.custom_bg_url} onChange={e => setHaConfig({...haConfig, custom_bg_url: e.target.value})} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white border border-white/5 outline-none" placeholder="https://..." />
+                 <label className="text-[9px] uppercase font-black text-white/20 ml-4">Fondo de Pantalla Nexus (URL)</label>
+                 <input value={haConfig.custom_bg_url} onChange={e => setHaConfig({...haConfig, custom_bg_url: e.target.value})} className="w-full bg-white/5 p-4 rounded-2xl text-xs text-white border border-white/5 outline-none" />
                </div>
             </div>
           )}
+          
         </div>
       </div>
 
       <div className="shrink-0 flex justify-center pt-6 border-t border-white/10">
         <button onClick={handleSave} className="w-full max-w-xl py-6 bg-blue-600 rounded-[35px] font-black text-[12px] uppercase tracking-[0.4em] shadow-2xl hover:scale-[1.02] text-white transition-all">
-          {status === 'saving' ? 'SINCRONIZANDO...' : status === 'success' ? 'NÚCLEO ACTUALIZADO' : 'GUARDAR CONFIGURACIÓN MAESTRA'}
+          {status === 'saving' ? 'ENVIANDO A HOME ASSISTANT...' : status === 'success' ? 'NÚCLEO SINCRONIZADO' : 'GUARDAR CONFIGURACIÓN MAESTRA'}
         </button>
       </div>
     </div>

@@ -1,319 +1,447 @@
 
-import React, { useState, useEffect } from 'react';
-import { FireflyConfig, HomeAssistantConfig } from '../types';
-import { fetchFireflyTransactions, fetchFinanceFromSheets } from '../fireflyService';
-import { getFinanceInsights } from '../geminiService';
+import React, { useState, useEffect, useMemo } from 'react';
+import { HomeAssistantConfig } from '../types';
+import { fetchFinanceFromSheets } from '../fireflyService';
+import { 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  Line, PieChart, Pie, Cell, Legend, Area, ComposedChart, LabelList
+} from 'recharts';
 
 const FinanceView: React.FC = () => {
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig | null>(null);
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [budgets, setBudgets] = useState<any[]>([]);
-  const [summaries, setSummaries] = useState<any[]>([]);
+  const [sheetData, setSheetData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiInsight, setAiInsight] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const monthsOrder = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
   useEffect(() => {
     loadConfig();
-    window.addEventListener('nexus_config_updated', loadConfig);
-    return () => window.removeEventListener('nexus_config_updated', loadConfig);
+    window.addEventListener('rm_config_updated', loadConfig);
+    return () => window.removeEventListener('rm_config_updated', loadConfig);
   }, []);
 
-  const loadConfig = () => {
+  const loadConfig = async () => {
     const saved = localStorage.getItem('nexus_ha_config');
     if (saved) {
-      try {
-        const parsed: HomeAssistantConfig = JSON.parse(saved);
-        setHaConfig(parsed);
-        if (parsed.finance) {
-          refreshData(parsed.finance);
-        } else {
-          setLoading(false);
-        }
-      } catch (e) { console.error(e); setLoading(false); }
-    } else {
-      setLoading(false);
+      const parsed: HomeAssistantConfig = JSON.parse(saved);
+      setHaConfig(parsed);
+      if (parsed.finance?.sheets_csv_url) {
+        const data = await fetchFinanceFromSheets(parsed.finance.sheets_csv_url);
+        setSheetData(data);
+      }
     }
+    setLoading(false);
   };
 
-  const getCycleMonth = () => {
+  const getActiveMonth = () => {
     const now = new Date();
-    const day = now.getDate();
-    const month = now.getMonth();
-    const cycleIndex = day >= 20 ? (month + 1) % 12 : month;
-    return monthsOrder[cycleIndex];
+    let monthIdx = now.getMonth();
+    if (now.getDate() >= 20) monthIdx = (monthIdx + 1) % 12;
+    const months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    return months[monthIdx];
   };
 
-  const refreshData = async (cfg: FireflyConfig) => {
-    setIsRefreshing(true);
-    try {
-      if (cfg.use_sheets_mirror && cfg.sheets_csv_url) {
-        const data = await fetchFinanceFromSheets(cfg.sheets_csv_url);
-        setTransactions(data.transactions);
-        setBudgets(data.budgets);
-        setSummaries(data.summaries);
-      } else if (cfg.url && cfg.token) {
-        const txs = await fetchFireflyTransactions(cfg.url, cfg.token, cfg.main_account_id, cfg.proxy_url);
-        setTransactions(txs);
-      }
-    } catch (e: any) {
-      console.error("Finance Load Error:", e);
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+  const parseSpanishNum = (val: any) => {
+    if (val === undefined || val === null || val === '0' || val === '-' || val === "") return 0;
+    let str = String(val).trim().replace('€', '').replace(/\s/g, '');
+    const isNegative = str.includes('-') || str.includes('(');
+    str = str.replace(/[()\-]/g, '');
+    
+    if (str.includes(',') && str.includes('.')) {
+      str = str.replace(/\./g, '').replace(',', '.');
+    } else if (str.includes(',')) {
+      str = str.replace(',', '.');
     }
+    
+    const n = parseFloat(str);
+    const final = isNaN(n) ? 0 : n;
+    return isNegative ? -Math.abs(final) : final;
   };
 
-  const handleRefreshManual = () => {
-    if (haConfig?.finance) refreshData(haConfig.finance);
+  const formatRMNum = (val: number) => {
+    return new Intl.NumberFormat('de-DE', { 
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0
+    }).format(Math.round(val));
   };
 
-  const currentCycle = getCycleMonth();
-  
-  const currentBudgets = budgets
-    .filter(b => b.month === currentCycle)
-    .sort((a, b) => {
-      const percentA = (a.spent / a.limit) * 100;
-      const percentB = (b.spent / b.limit) * 100;
-      return percentB - percentA;
-    });
+  const normalizeText = (text: string) => {
+    return text?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() || "";
+  };
 
-  const currentSummary = summaries.find(s => s.month === currentCycle);
+  const processed = useMemo(() => {
+    if (!sheetData?.matrix || sheetData.matrix.length < 2) return null;
+    
+    const activeMonth = normalizeText(getActiveMonth());
+    const rows = sheetData.matrix;
 
-  const calculateAccumulatedSavings = () => {
-    let total = 0;
-    const currentMonthIdx = monthsOrder.indexOf(currentCycle);
-    for (let i = 0; i <= currentMonthIdx; i++) {
-      const monthData = summaries.find(s => s.month === monthsOrder[i]);
-      if (monthData) {
-        if (monthData.realSpent > 0 || i < currentMonthIdx) {
-          total += (monthData.income - monthData.realSpent);
+    const transactions = rows
+      .slice(1, 150)
+      .filter((r: string[]) => r[0] && r[0] !== "Fecha")
+      .map((r: string[]) => ({
+        fecha: r[0],
+        desc: r[1],
+        monto: r[2],
+        cat: r[3],
+        montoNum: parseSpanishNum(r[2])
+      }));
+
+    const categories = rows
+      .filter((r: string[]) => normalizeText(r[5]) === activeMonth)
+      .map((r: string[]) => {
+        const name = r[6] || "Sin nombre";
+        const budget = Math.abs(parseSpanishNum(r[7]));
+        const real = Math.abs(parseSpanishNum(r[8]));
+        const remaining = budget - real;
+        const percent = budget > 0 ? Math.round((real / budget) * 100) : 0;
+        
+        const relatedTx = transactions.filter(tx => 
+          normalizeText(tx.cat).includes(normalizeText(name)) || 
+          normalizeText(name).includes(normalizeText(tx.cat))
+        );
+
+        return { name, budget, real, remaining, percent, transactions: relatedTx };
+      })
+      .filter(c => c.name && !["Categoria", "Subtotal", "Total"].includes(c.name))
+      .sort((a, b) => b.percent - a.percent);
+
+    let runningTotal = 0;
+    const history = rows
+      .map((r: string[]) => {
+        const ahorroMes = parseSpanishNum(r[14]);
+        if (r[10] && r[10] !== "Mes") {
+          runningTotal += ahorroMes;
         }
-      }
-    }
-    return total;
-  };
+        return {
+          mes: r[10],
+          ingresos: parseSpanishNum(r[11]),
+          gastosReal: parseSpanishNum(r[12]),
+          gastosPrevisto: parseSpanishNum(r[13]),
+          ahorroNeto: ahorroMes,
+          ahorroAcumulado: runningTotal,
+        };
+      })
+      .filter(h => h.mes && h.mes !== "Mes" && (h.ingresos !== 0 || h.gastosReal !== 0 || h.ahorroNeto !== 0));
 
-  const accumulatedSavings = calculateAccumulatedSavings();
-  const realSavings = currentSummary ? currentSummary.income - currentSummary.realSpent : 0;
+    const currentStats = history.find(h => normalizeText(h.mes) === activeMonth) || history[history.length - 1];
+    const saldoO14 = parseSpanishNum(rows[13]?.[14]);
 
-  const handleAIAnalysis = async () => {
-    if (aiLoading) return;
-    setAiLoading(true);
-    const result = await getFinanceInsights({
-      cycle: currentCycle,
-      summary: currentSummary,
-      accumulatedSavings,
-      activeBudgets: currentBudgets
+    const ahorroPercent = currentStats?.ingresos > 0 ? Math.round((currentStats.ahorroNeto / currentStats.ingresos) * 100) : 0;
+    const gastoPercent = currentStats?.gastosPrevisto > 0 ? Math.round((currentStats.gastosReal / currentStats.gastosPrevisto) * 100) : 0;
+
+    // Obtener KPIs personalizados de las coordenadas indicadas
+    const customKPIs = (haConfig?.finance?.custom_widgets || []).map(w => {
+      const rawVal = w.cell ? sheetData.getCellValue(w.cell) : "0";
+      return {
+        ...w,
+        value: parseSpanishNum(rawVal)
+      };
     });
-    setAiInsight(result ?? null);
-    setAiLoading(false);
+
+    return { categories, history, currentStats, saldoO14, ahorroPercent, gastoPercent, customKPIs };
+  }, [sheetData, haConfig]);
+
+  const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16', '#d946ef'];
+
+  const getAccentColor = (colorName?: string) => {
+    switch(colorName) {
+      case 'blue': return 'text-blue-400 border-blue-500/20';
+      case 'green': return 'text-green-400 border-green-500/20';
+      case 'orange': return 'text-orange-400 border-orange-500/20';
+      case 'purple': return 'text-purple-400 border-purple-500/20';
+      case 'red': return 'text-red-400 border-red-500/20';
+      default: return 'text-white border-white/10';
+    }
   };
-
-  const getCategoryColor = (cat: string) => {
-    const c = (cat || '').toLowerCase();
-    if (c.includes('alimentacion')) return 'text-green-400 border-green-500/30 bg-green-500/10';
-    if (c.includes('transporte')) return 'text-blue-400 border-blue-500/30 bg-blue-500/10';
-    if (c.includes('ocio')) return 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10';
-    if (c.includes('servicios')) return 'text-red-400 border-red-500/30 bg-red-500/10';
-    return 'text-white/60 border-white/10 bg-white/5';
-  };
-
-  const groupedTransactions = transactions.reduce((groups: { [key: string]: any[] }, tx) => {
-    const date = tx.attributes.transactions[0].date;
-    if (!groups[date]) groups[date] = [];
-    groups[date].push(tx);
-    return groups;
-  }, {});
-
-  const sortedDates = Object.keys(groupedTransactions).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
   if (loading) return (
-    <div className="h-[60vh] flex flex-col items-center justify-center">
-      <div className="w-16 h-16 border-4 border-white/5 border-t-blue-500 rounded-full animate-spin mb-6" />
-      <p className="text-blue-400 font-black text-xs uppercase tracking-[0.4em] animate-pulse">Sincronizando Consola Nexus...</p>
-    </div>
-  );
-
-  if (!haConfig?.finance?.sheets_csv_url) return (
-    <div className="h-[60vh] flex items-center justify-center glass rounded-[40px] text-white/20 uppercase font-black tracking-widest text-xs border border-dashed border-white/10">
-      Enlace de Google Sheets no configurado. Abre Ajustes.
+    <div className="h-full flex flex-col items-center justify-center gap-6">
+      <div className="w-20 h-20 border-4 border-blue-500/10 border-t-blue-500 rounded-full animate-spin" />
+      <p className="text-blue-400 font-black text-xs uppercase tracking-[1em] animate-pulse">Sincronizando RM Capital...</p>
     </div>
   );
 
   return (
-    <div className="flex flex-col gap-6 pb-24">
-       
-       <div className="flex justify-between items-center shrink-0 glass px-8 py-5 rounded-[32px] border border-white/10">
-          <div className="flex items-center gap-6">
-             <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/40">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <div className="flex flex-col gap-10 pb-32 h-full overflow-y-auto no-scrollbar px-6 animate-in fade-in duration-1000">
+      
+      {/* KPIs MAESTROS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 shrink-0">
+        <div className="glass rounded-[40px] p-8 border border-blue-500/20 bg-black/40 h-[220px] flex flex-col justify-between shadow-2xl transition-all">
+          <p className="text-lg font-black uppercase tracking-[0.4em] text-blue-400 italic">Ahorro Mensual</p>
+          <div>
+            <h4 className={`text-5xl font-black italic tabular-nums leading-none ${ (processed?.currentStats?.ahorroNeto || 0) < 0 ? 'text-red-500' : 'text-white' }`}>
+              {formatRMNum(processed?.currentStats?.ahorroNeto || 0)}€
+            </h4>
+            <p className="text-xl font-black text-blue-400 mt-3 uppercase tracking-widest border-t border-white/5 pt-3">
+              {processed?.ahorroPercent}% <span className="text-[10px] text-white/30 tracking-[0.2em] font-medium ml-1">EFICIENCIA</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="glass rounded-[40px] p-8 border border-green-500/20 bg-black/40 h-[220px] flex flex-col justify-between shadow-2xl transition-all">
+          <p className="text-lg font-black uppercase tracking-[0.4em] text-green-400 italic">Ingresos</p>
+          <h4 className="text-5xl font-black text-green-400 italic tabular-nums leading-none">
+            {formatRMNum(processed?.currentStats?.ingresos || 0)}€
+          </h4>
+        </div>
+
+        <div className="glass rounded-[40px] p-8 border border-red-500/20 bg-black/40 h-[220px] flex flex-col justify-between shadow-2xl transition-all">
+          <p className="text-lg font-black uppercase tracking-[0.4em] text-red-400 italic">Gastos Reales</p>
+          <div>
+            <h4 className="text-5xl font-black text-red-400 italic tabular-nums leading-none">
+              {formatRMNum(processed?.currentStats?.gastosReal || 0)}€
+            </h4>
+            <div className="flex justify-between items-center mt-3 border-t border-white/10 pt-3">
+              <span className={`text-xl font-black ${processed?.gastoPercent && processed.gastoPercent > 100 ? 'text-red-500' : 'text-white'}`}>
+                {processed?.gastoPercent}% <span className="text-[10px] text-white/30 tracking-widest italic font-medium ml-1">EJECUTADO</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="glass rounded-[40px] p-8 border border-purple-500/30 bg-purple-500/5 h-[220px] flex flex-col justify-between shadow-2xl relative transition-all">
+          <p className="text-lg font-black uppercase tracking-[0.4em] text-purple-400 italic">Patrimonio Neto</p>
+          <h4 className={`text-5xl font-black italic tabular-nums leading-none ${ (processed?.saldoO14 || 0) < 0 ? 'text-red-500' : 'text-white' }`}>
+            {formatRMNum(processed?.saldoO14 || 0)}€
+          </h4>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 shrink-0">
+        
+        {/* DISTRIBUCIÓN INTEGRADA CON TRANSACCIONES (DRILL-DOWN) */}
+        <div className="lg:col-span-2 glass rounded-[50px] border border-white/10 bg-black/30 flex flex-col h-[850px] overflow-hidden">
+          <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+            <h4 className="text-xl font-black uppercase tracking-[0.4em] text-white italic border-l-4 border-blue-500 pl-6">Distribución Operativa RM</h4>
+            <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">Auditoría de Flujos</span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto no-scrollbar p-8 space-y-8">
+            {processed?.categories.map((cat, idx) => (
+              <div key={idx} className="space-y-4">
+                <div className="bg-white/[0.04] p-6 rounded-[35px] border border-white/10 shadow-xl">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex flex-col">
+                      <span className="text-2xl font-black text-white uppercase italic tracking-wider">{cat.name}</span>
+                      <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mt-1">Presupuesto: {formatRMNum(cat.budget)}€</span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-3xl font-black ${cat.percent > 100 ? 'text-red-500' : 'text-white'}`}>{cat.percent}%</span>
+                      <p className="text-[10px] font-black text-white/20 uppercase mt-1">Consumo</p>
+                    </div>
+                  </div>
+                  
+                  <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-6">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-1000 ${cat.percent > 100 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]'}`} 
+                      style={{ width: `${Math.min(100, cat.percent)}%` }} 
+                    />
+                  </div>
+
+                  {cat.transactions.length > 0 ? (
+                    <div className="space-y-2 border-t border-white/5 pt-4">
+                      <p className="text-[9px] font-black text-white/10 uppercase tracking-[0.4em] mb-4 ml-2">Movimientos Relacionados</p>
+                      {cat.transactions.map((tx, txIdx) => (
+                        <div key={txIdx} className="flex justify-between items-center px-6 py-3 bg-white/[0.02] rounded-2xl border border-white/5 group hover:bg-white/[0.05] transition-all">
+                          <div className="flex items-center gap-6 min-w-0">
+                            <span className="text-[10px] font-mono text-white/20 uppercase w-20">{tx.fecha}</span>
+                            <span className="text-sm font-bold text-white/80 uppercase truncate max-w-[300px]">{tx.desc}</span>
+                          </div>
+                          <span className={`text-lg font-black tabular-nums ${tx.montoNum < 0 ? 'text-green-400' : 'text-red-500'}`}>
+                            {formatRMNum(tx.montoNum)}€
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 border-t border-white/5 mt-4">
+                      <span className="text-[8px] font-black text-white/10 uppercase tracking-widest italic">Sin transacciones directas registradas</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* MIX DE CONSUMO (PIE) */}
+        <div className="glass rounded-[50px] p-10 border border-white/10 bg-black/30 flex flex-col items-center h-[850px] shadow-2xl relative">
+          <h4 className="text-lg font-black uppercase tracking-[0.4em] text-white/30 italic mb-10">Mix de Consumo</h4>
+          <div className="w-full h-full relative flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <defs>
+                  {COLORS.map((color, i) => (
+                    <radialGradient key={`grad-${i}`} id={`pieGrad-${i}`} cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                      <stop offset="0%" stopColor={color} stopOpacity={1} />
+                      <stop offset="100%" stopColor="#000" stopOpacity={0.8} />
+                    </radialGradient>
+                  ))}
+                </defs>
+                <Pie 
+                  data={processed?.categories} 
+                  dataKey="real" 
+                  nameKey="name" 
+                  cx="50%" cy="40%" 
+                  innerRadius={110} 
+                  outerRadius={160} 
+                  paddingAngle={6}
+                  stroke="rgba(255,255,255,0.05)"
+                  strokeWidth={3}
+                >
+                  {processed?.categories.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={`url(#pieGrad-${index % COLORS.length})`} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  formatter={(value: number, name: string) => [`${formatRMNum(value)}€`, name.toUpperCase()]}
+                  contentStyle={{backgroundColor: '#000', border: '2px solid rgba(255,255,255,0.1)', borderRadius: '30px', color: '#fff', fontSize: '14px', fontWeight: '900', padding: '15px'}}
+                  itemStyle={{color: '#fff', textTransform: 'uppercase'}}
+                />
+                <Legend 
+                  layout="vertical" 
+                  align="center" 
+                  verticalAlign="bottom"
+                  wrapperStyle={{ 
+                    paddingTop: '30px', 
+                    fontSize: '12px', 
+                    textTransform: 'uppercase', 
+                    fontWeight: '900',
+                    color: 'white',
+                    letterSpacing: '0.1em'
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            
+            <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none flex flex-col z-10">
+              <span className="text-[10px] font-black text-white/20 block tracking-[0.5em] mb-2 uppercase">Gasto Ciclo</span>
+              <h5 className="text-5xl font-black text-white italic leading-none">{formatRMNum(processed?.currentStats?.gastosReal || 0)}€</h5>
+              <div className="h-1 w-12 bg-red-500/40 mx-auto mt-4 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
+            </div>
+          </div>
+        </div>
+
+        {/* PROYECCIÓN PATRIMONIAL UNIFICADA */}
+        <div className="lg:col-span-3 glass rounded-[50px] p-12 border border-white/10 bg-black/40 h-[600px] shadow-2xl relative overflow-hidden">
+          <div className="flex justify-between items-center mb-12">
+             <div className="flex flex-col gap-1">
+                <h4 className="text-xl font-black uppercase tracking-[0.4em] text-white italic border-l-4 border-purple-500 pl-6">Proyección de Patrimonio & Ahorro RM</h4>
+                <p className="text-[10px] font-black text-white/20 uppercase tracking-widest pl-10">Análisis Histórico Interconectado</p>
              </div>
-             <div>
-                <h2 className="text-xl font-black uppercase tracking-[0.2em] text-white">Consola Financiera Nexus</h2>
-                <div className="flex items-center gap-3 mt-1">
-                   <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                   <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Mirror_Active // Ciclo: {currentCycle}</p>
+             <div className="flex gap-8">
+                <div className="flex items-center gap-3">
+                   <div className="w-4 h-1 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6]" />
+                   <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Patrimonio Total</span>
+                </div>
+                <div className="flex items-center gap-3">
+                   <div className="w-4 h-1 rounded-full bg-green-500 shadow-[0_0_10px_#10b981]" />
+                   <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Ahorro (+)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                   <div className="w-4 h-1 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]" />
+                   <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Déficit (-)</span>
                 </div>
              </div>
           </div>
-          <button 
-             onClick={handleRefreshManual} 
-             className={`p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all ${isRefreshing ? 'animate-spin text-blue-400' : 'text-white/40'}`}
-          >
-             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          </button>
-       </div>
+          
+          <div className="h-full pb-14">
+            <ResponsiveContainer width="100%" height="90%">
+              <ComposedChart data={processed?.history} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <defs>
+                  <linearGradient id="colorAcumulado" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: '900', textTransform: 'uppercase'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.2)', fontSize: 12}} />
+                <Tooltip 
+                  formatter={(value: number, name: string) => {
+                    if (name === 'ahorroAcumulado') return [`${formatRMNum(value)}€`, 'PATRIMONIO'];
+                    return [`${formatRMNum(value)}€`, 'NETO MES'];
+                  }}
+                  contentStyle={{backgroundColor: '#000', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '25px', color: '#fff', fontWeight: '900', padding: '15px'}}
+                />
+                
+                <Area type="monotone" dataKey="ahorroAcumulado" fill="url(#colorAcumulado)" stroke="none" />
+                
+                <Line 
+                  type="monotone" 
+                  name="ahorroAcumulado" 
+                  dataKey="ahorroAcumulado" 
+                  stroke="#3b82f6" 
+                  strokeWidth={8} 
+                  dot={{r: 6, fill: '#3b82f6', strokeWidth: 0}} 
+                  activeDot={{r: 10, stroke: '#fff', strokeWidth: 4}} 
+                >
+                  <LabelList 
+                    dataKey="ahorroAcumulado" 
+                    position="top" 
+                    offset={15} 
+                    content={(props: any) => {
+                      const { x, y, value } = props;
+                      return (
+                        <text x={x} y={y - 10} fill="#3b82f6" fontSize={11} fontWeight="900" textAnchor="middle" style={{fontFamily: 'JetBrains Mono'}}>
+                          {formatRMNum(value)}€
+                        </text>
+                      );
+                    }}
+                  />
+                </Line>
+                
+                <Line 
+                  type="stepAfter" 
+                  name="ahorroNeto" 
+                  dataKey="ahorroNeto" 
+                  strokeWidth={3}
+                  strokeDasharray="6 4"
+                  stroke="#ffffff15"
+                  dot={(props: any) => {
+                    const { cx, cy, payload } = props;
+                    const color = payload.ahorroNeto < 0 ? '#ef4444' : '#10b981';
+                    return (
+                      <g key={`node-${payload.mes}`}>
+                        <circle cx={cx} cy={cy} r={6} fill={color} stroke="white" strokeWidth={1.5} />
+                        <text x={cx} y={cy + 25} fill={color} fontSize={10} fontWeight="900" textAnchor="middle" style={{fontFamily: 'JetBrains Mono'}}>
+                           {payload.ahorroNeto > 0 ? '+' : ''}{formatRMNum(payload.ahorroNeto)}
+                        </text>
+                        {payload.ahorroNeto < 0 && (
+                          <circle cx={cx} cy={cy} r={12} fill={color} fillOpacity={0.15} className="animate-pulse" />
+                        )}
+                      </g>
+                    );
+                  }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-       {currentSummary && (
-         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
-            {[
-              { label: 'Gasto Real', val: currentSummary.realSpent, color: currentSummary.realSpent > currentSummary.predictedSpent ? 'text-red-400' : 'text-white', icon: 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6' },
-              { label: 'Ahorro Mensual', val: realSavings, color: 'text-blue-400', bg: 'bg-blue-500/5', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-              { label: 'Ahorro Acumulado', val: accumulatedSavings, color: 'text-green-400', bg: 'bg-green-500/5', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
-              { label: 'Ingresos Totales', val: currentSummary.income, color: 'text-white/80', icon: 'M7 11l5-5m0 0l5 5m-5-5v12' }
-            ].map((m, i) => (
-              <div key={i} className={`glass px-7 py-6 rounded-[32px] border border-white/5 flex items-center justify-between ${m.bg || ''}`}>
+        {/* SECCIÓN DE KPIs PERSONALIZADOS (DATOS DE SHEETS) */}
+        {processed?.customKPIs && processed.customKPIs.length > 0 && (
+          <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 shrink-0 mt-4">
+            <div className="col-span-full mb-2">
+               <h4 className="text-[10px] font-black uppercase tracking-[0.6em] text-white/30 italic flex items-center gap-4">
+                  <div className="h-px flex-1 bg-white/5" />
+                  RM Telemetría de Hoja Directa
+                  <div className="h-px flex-1 bg-white/5" />
+               </h4>
+            </div>
+            {processed.customKPIs.map((kpi, i) => (
+              <div key={i} className={`glass p-6 rounded-[35px] border ${getAccentColor(kpi.color)} bg-black/40 shadow-xl flex flex-col justify-between h-[180px] group hover:scale-[1.02] transition-transform`}>
+                 <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">{kpi.title || `KPI ${kpi.cell}`}</p>
                  <div>
-                    <p className="text-[10px] text-white/30 uppercase font-black tracking-widest mb-2">{m.label}</p>
-                    <p className={`text-3xl font-black tabular-nums ${m.color}`}>{m.val.toLocaleString('es-ES')}€</p>
-                 </div>
-                 <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-white/20">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={m.icon} /></svg>
+                    <h5 className="text-4xl font-black italic tabular-nums leading-none">
+                       {formatRMNum(kpi.value)}
+                       <span className="text-xs ml-2 opacity-20 not-italic uppercase font-black">{kpi.unit || '€'}</span>
+                    </h5>
+                    <p className="text-[8px] font-mono opacity-10 uppercase tracking-widest mt-3">COORD: RM_LOG_{kpi.cell}</p>
                  </div>
               </div>
             ))}
-         </div>
-       )}
-
-       <div className={`glass rounded-[32px] border transition-all duration-700 shrink-0 ${aiInsight ? 'border-blue-500/40 bg-blue-500/5' : 'border-white/5'}`}>
-          <div className="px-8 py-4 flex items-center justify-between gap-8">
-             <div className="flex items-center gap-5 shrink-0">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${aiLoading ? 'bg-blue-600 animate-pulse' : 'bg-blue-600/10 border border-blue-500/20'}`}>
-                   <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                </div>
-                <div className="hidden md:block">
-                   <h3 className="text-xs font-black uppercase tracking-widest text-white">Asistente Estratégico</h3>
-                   <p className="text-[9px] text-white/20 font-mono uppercase">Deep_Scan_Operational</p>
-                </div>
-             </div>
-             <div className="flex-1">
-                {aiInsight ? (
-                  <p className="text-sm text-blue-100/80 leading-snug italic font-medium">"{aiInsight}"</p>
-                ) : (
-                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                     <div className={`h-full bg-blue-500/20 transition-all duration-1000 ${aiLoading ? 'w-full translate-x-0' : 'w-0 -translate-x-full'}`} />
-                  </div>
-                )}
-             </div>
-             <button onClick={handleAIAnalysis} disabled={aiLoading} className="px-8 py-3 bg-white text-black rounded-2xl text-[10px] font-black tracking-widest uppercase hover:scale-105 active:scale-95 disabled:opacity-50 transition-all shrink-0">
-                {aiLoading ? 'ANALIZANDO...' : 'RECALCULAR TÁCTICA'}
-             </button>
           </div>
-       </div>
-
-       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-3 glass rounded-[40px] p-8 border border-white/10 flex flex-col min-h-[500px]">
-             <div className="flex justify-between items-center mb-8">
-                <h2 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Historial de Flujos</h2>
-                <span className="text-[10px] font-mono text-white/20 bg-white/5 px-3 py-1 rounded-full uppercase">Ingesta_Agrupada_v3</span>
-             </div>
-
-             <div className="space-y-12">
-                {sortedDates.map((date) => {
-                  const dayTxs = groupedTransactions[date];
-                  const daySum = dayTxs.reduce((acc, curr) => acc + parseFloat(curr.attributes.transactions[0].amount), 0);
-                  const isNetExpense = daySum > 0;
-                  
-                  return (
-                    <div key={date} className="space-y-6">
-                      <div className="flex items-center justify-between px-2">
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="h-px w-8 bg-white/10" />
-                          <span className="text-[11px] font-black uppercase tracking-[0.4em] text-white/40">{date}</span>
-                          <div className="h-px flex-1 bg-white/5" />
-                        </div>
-                        <div className={`ml-4 px-4 py-1 rounded-full border text-[10px] font-black tabular-nums transition-all ${daySum !== 0 ? (isNetExpense ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400') : 'bg-white/5 border-white/10 text-white/20'}`}>
-                           {isNetExpense ? '-' : '+'}{Math.abs(daySum).toLocaleString('es-ES', { minimumFractionDigits: 2 })}€
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        {dayTxs.map((tx, i) => {
-                          const d = tx.attributes.transactions[0];
-                          const val = parseFloat(d.amount);
-                          const isExpense = val > 0;
-                          return (
-                            <div key={i} className="flex justify-between items-center p-5 bg-white/[0.02] hover:bg-white/[0.05] rounded-[24px] border border-white/5 transition-all group">
-                               <div className="flex items-center gap-5">
-                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-[10px] uppercase border transition-transform group-hover:scale-110 ${getCategoryColor(d.category_name)}`}>
-                                     {d.category_name.substring(0,3)}
-                                  </div>
-                                  <div>
-                                     <p className="text-[13px] font-black text-white uppercase tracking-tight line-clamp-1">{d.description}</p>
-                                     <p className="text-[9px] text-white/20 uppercase font-black tracking-widest mt-1">{d.category_name}</p>
-                                  </div>
-                               </div>
-                               <div className="text-right">
-                                  <p className={`text-lg font-black tabular-nums ${isExpense ? 'text-red-400' : 'text-green-400'}`}>
-                                     {isExpense ? '-' : '+'}{Math.abs(val).toLocaleString('es-ES', { minimumFractionDigits: 2 })}€
-                                  </p>
-                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-             </div>
-          </div>
-
-          <div className="lg:col-span-2 glass rounded-[40px] p-8 border border-white/10 flex flex-col h-fit">
-             <div className="flex items-center gap-4 mb-8">
-                <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-400 border border-blue-500/20">
-                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                </div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-white/80">Control de Presupuestos</h3>
-             </div>
-
-             <div className="space-y-10">
-                {currentBudgets.length > 0 ? currentBudgets.map((b, i) => {
-                   const percent = Math.min(100, (b.spent / b.limit) * 100);
-                   const isCritical = percent > 90;
-                   return (
-                      <div key={i} className="space-y-4">
-                         <div className="flex justify-between items-end px-1">
-                            <div>
-                               <p className="text-[11px] font-black text-white/40 uppercase tracking-widest">{b.category}</p>
-                               <p className="text-base font-black text-white mt-1">
-                                  {b.spent.toLocaleString('es-ES')}€ 
-                                  <span className="text-white/20 text-xs ml-2">/ {b.limit.toLocaleString('es-ES')}€</span>
-                               </p>
-                            </div>
-                            <div className={`text-xs font-black px-3 py-1 rounded-lg ${isCritical ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'bg-white/5 text-white/40'}`}>
-                               {percent.toFixed(0)}%
-                            </div>
-                         </div>
-                         <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden border border-white/5 p-0.5">
-                            <div 
-                               className={`h-full rounded-full transition-all duration-1000 ${isCritical ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'bg-blue-600 shadow-[0_0_15px_rgba(59,130,246,0.3)]'}`} 
-                               style={{ width: `${percent}%` }} 
-                            />
-                         </div>
-                      </div>
-                   );
-                }) : (
-                   <div className="py-20 flex flex-col items-center justify-center text-center opacity-20">
-                      <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                      <p className="text-xs font-black uppercase tracking-widest">No hay presupuestos activos en este ciclo</p>
-                   </div>
-                )}
-             </div>
-          </div>
-       </div>
+        )}
+      </div>
     </div>
   );
 };

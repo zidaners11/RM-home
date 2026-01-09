@@ -35,7 +35,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
            </svg>
         </div>
         <div className="text-center">
-          <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter">Nexus OS</h2>
+          <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter">RM Home OS</h2>
           <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.5em] mt-2">Acceso Reservado Personal</p>
         </div>
         <div className="w-full space-y-4">
@@ -44,19 +44,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-5 text-white outline-none focus:ring-2 focus:ring-blue-500/30 font-bold"
-            placeholder="USUARIO"
+            placeholder="USUARIO RM"
           />
           <input 
             type="password" 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-5 text-white outline-none focus:ring-2 focus:ring-blue-500/30 font-bold"
-            placeholder="CONTRASEÑA"
+            placeholder="CONTRASEÑA RM"
           />
         </div>
         {error && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest animate-bounce">Credenciales Inválidas</p>}
         <button type="submit" className="w-full py-6 bg-blue-600 text-white rounded-[35px] font-black uppercase tracking-[0.5em] text-[12px] shadow-2xl hover:scale-105 active:scale-95 transition-all">
-          AUTORIZAR NÚCLEO
+          AUTORIZAR RM NÚCLEO
         </button>
       </form>
     </div>

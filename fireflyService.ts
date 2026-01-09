@@ -1,165 +1,90 @@
 
 /**
- * Nexus Finance Sync Engine v12.1 - Optimized Ingestion & User URL handling
+ * Nexus Finance Sync Engine v13.0 - Soporte de Mapeo por Coordenadas
  */
+
+export interface SheetMatrix {
+  raw: string[][];
+  getCell: (coord: string) => string;
+  getRange: (range: string) => string[];
+}
 
 export async function fetchFinanceFromSheets(sheetUrl: string) {
   try {
     let fetchUrl = (sheetUrl || '').trim();
-    if (!fetchUrl) return { transactions: [], budgets: [], summaries: [] };
+    if (!fetchUrl) return null;
 
-    // Limpieza y preparación de la URL de Google Sheets
     if (fetchUrl.includes('docs.google.com/spreadsheets')) {
-      // Si no tiene output=csv, lo forzamos
       if (!fetchUrl.includes('output=csv')) {
         fetchUrl += fetchUrl.includes('?') ? '&output=csv' : '?output=csv';
       }
-      // Cache-busting para evitar datos viejos
       fetchUrl += `&t=${Date.now()}`;
     }
 
-    const response = await fetch(fetchUrl, { 
-      method: 'GET', 
-      mode: 'cors', 
-      cache: 'no-store'
-    });
-    
+    const response = await fetch(fetchUrl, { method: 'GET', mode: 'cors', cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP_${response.status}`);
     
     const csvData = await response.text();
-    if (csvData.trim().startsWith('<!DOCTYPE') || csvData.trim().startsWith('<html')) {
-       throw new Error("URL_NOT_A_CSV_ERROR");
-    }
-
     const lines = csvData.split(/\r?\n/).filter(l => l.trim() !== '');
-    if (lines.length < 2) return { transactions: [], budgets: [], summaries: [] };
+    if (lines.length === 0) return null;
 
-    const firstLine = lines[0];
-    const delimiter = firstLine.includes(';') ? ';' : ',';
+    const delimiter = lines[0].includes(';') ? ';' : ',';
     
-    const transactions: any[] = [];
-    const budgets: any[] = [];
-    const summaries: any[] = [];
+    // Convertimos el CSV en una matriz real [fila][columna]
+    const matrix: string[][] = lines.map(line => {
+      const regex = new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+      return line.split(regex).map(c => c.replace(/"/g, '').trim());
+    });
 
-    const parseCurrency = (val: string) => {
-      if (!val) return 0;
-      let clean = val.replace(/[^\d,.-]/g, '').trim();
-      if (clean.includes(',') && clean.includes('.')) {
-         clean = clean.replace(/\./g, '').replace(',', '.');
-      } else if (clean.includes(',')) {
-         clean = clean.replace(',', '.');
+    const colToIndex = (col: string) => {
+      let index = 0;
+      for (let i = 0; i < col.length; i++) {
+        index = index * 26 + (col.charCodeAt(i) - 64);
       }
-      return parseFloat(clean) || 0;
+      return index - 1;
     };
 
-    lines.slice(1).forEach(line => {
-      const regex = new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
-      const cells = line.split(regex).map(c => c.replace(/"/g, '').trim());
-      
-      // Columnas A-D: Transacciones
-      if (cells[0] && cells[2]) {
-        transactions.push({
-          attributes: {
-            transactions: [{
-              date: cells[0],
-              description: cells[1] || 'Transacción',
-              amount: parseCurrency(cells[2]).toString(),
-              category_name: cells[3] || 'Varios'
-            }]
-          }
-        });
-      }
+    const getCellValue = (coord: string) => {
+      const match = coord.match(/([A-Z]+)(\d+)/);
+      if (!match) return "";
+      const col = colToIndex(match[1]);
+      const row = parseInt(match[2]) - 1;
+      return matrix[row]?.[col] || "";
+    };
 
-      // Columnas F-I: Presupuestos
-      if (cells[5] && cells[7]) {
-        budgets.push({
-          month: cells[5].toLowerCase(),
-          category: cells[6],
-          limit: parseCurrency(cells[7]),
-          spent: parseCurrency(cells[8])
-        });
-      }
+    const getRangeValues = (range: string) => {
+      const [start, end] = range.split(':');
+      const startMatch = start.match(/([A-Z]+)(\d+)/);
+      const endMatch = end.match(/([A-Z]+)(\d+)/);
+      if (!startMatch || !endMatch) return [];
 
-      // Columnas K-N: Resúmenes Globales
-      if (cells[10] && cells[11]) {
-        summaries.push({
-          month: cells[10].toLowerCase(),
-          income: parseCurrency(cells[11]),
-          realSpent: parseCurrency(cells[12]),
-          predictedSpent: parseCurrency(cells[13])
-        });
+      const startCol = colToIndex(startMatch[1]);
+      const startRow = parseInt(startMatch[2]) - 1;
+      const endCol = colToIndex(endMatch[1]);
+      const endRow = parseInt(endMatch[2]) - 1;
+
+      const results = [];
+      for (let r = startRow; r <= endRow; r++) {
+        for (let c = startCol; c <= endCol; c++) {
+          results.push(matrix[r]?.[c] || "");
+        }
       }
-    });
+      return results;
+    };
 
     return {
-      transactions: transactions.sort((a, b) => {
-        try {
-          return new Date(b.attributes.transactions[0].date).getTime() - new Date(a.attributes.transactions[0].date).getTime();
-        } catch(e) { return 0; }
-      }),
-      budgets,
-      summaries
+      matrix,
+      getCellValue,
+      getRangeValues,
+      // Mantenemos compatibilidad con el sistema anterior si es necesario
+      oldFormat: {
+         transactions: [], // Se puede recrear si es necesario
+         budgets: [],
+         summaries: []
+      }
     };
-  } catch (e: any) {
-    console.error("Finance Sync Engine Error:", e);
-    throw e;
+  } catch (e) {
+    console.error("Finance Matrix Error:", e);
+    return null;
   }
-}
-
-const getBaseUrl = (url: string, proxy?: string) => {
-  if (!url) return '';
-  let instanceUrl = url.trim().replace(/\/+$/, '');
-  if (!instanceUrl.startsWith('http')) instanceUrl = `https://${instanceUrl}`;
-  let apiPath = instanceUrl.endsWith('/api/v1') ? instanceUrl : (instanceUrl.endsWith('/api') ? `${instanceUrl}/v1` : `${instanceUrl}/api/v1`);
-  if (proxy && proxy.trim() !== '') return `${proxy.trim().replace(/\/+$/, '')}/${apiPath}`;
-  return apiPath;
-};
-
-const getHeaders = (token: string) => ({
-  "Authorization": `Bearer ${token}`,
-  "Accept": "application/vnd.api+json",
-  "Content-Type": "application/json",
-});
-
-export async function testFireflyConnection(url: string, token: string, proxy?: string) {
-  const fullUrl = getBaseUrl(url, proxy);
-  try {
-    const response = await fetch(`${fullUrl}/about`, {
-      method: 'GET',
-      headers: getHeaders(token),
-      mode: 'cors'
-    });
-    if (response.ok) {
-      const data = await response.json();
-      return { success: true, version: data.data.version };
-    }
-    return { success: false, status: response.status };
-  } catch (error) {
-    throw new Error("NETWORK_ERROR");
-  }
-}
-
-export async function fetchFireflyAccounts(url: string, token: string, proxy?: string) {
-  const fullUrl = getBaseUrl(url, proxy);
-  const response = await fetch(`${fullUrl}/accounts?type=asset`, {
-    method: 'GET',
-    headers: getHeaders(token),
-    mode: 'cors'
-  });
-  if (!response.ok) throw new Error(`HTTP_${response.status}`);
-  const data = await response.json();
-  return data.data;
-}
-
-export async function fetchFireflyTransactions(url: string, token: string, accountId?: string, proxy?: string) {
-  const fullUrl = getBaseUrl(url, proxy);
-  const endpoint = accountId ? `${fullUrl}/accounts/${accountId}/transactions?limit=15` : `${fullUrl}/transactions?limit=20`;
-  const response = await fetch(endpoint, {
-    method: 'GET',
-    headers: getHeaders(token),
-    mode: 'cors'
-  });
-  if (!response.ok) throw new Error(`HTTP_${response.status}`);
-  const data = await response.json();
-  return data.data;
 }

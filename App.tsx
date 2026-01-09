@@ -24,24 +24,23 @@ const App: React.FC = () => {
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
 
   const applyConfig = (config: any) => {
+    if (!config) return;
     localStorage.setItem('nexus_ha_config', JSON.stringify(config));
     if (config.custom_bg_url) {
       setBgUrl(config.custom_bg_url);
     }
-    // Despachar evento para componentes
     setTimeout(() => {
-        window.dispatchEvent(new Event('nexus_config_updated'));
+        window.dispatchEvent(new Event('rm_config_updated'));
     }, 150);
   };
 
   const startupSequence = useCallback(async (username: string) => {
     setSyncState('syncing');
     
-    // 1. Verificar si hay algo local para no dejar la pantalla en blanco si falla HA
-    const savedConfigRaw = localStorage.getItem('nexus_ha_config');
     let haUrl = DEFAULT_HA_URL;
     let haToken = DEFAULT_HA_TOKEN;
     
+    const savedConfigRaw = localStorage.getItem('nexus_ha_config');
     if (savedConfigRaw) {
       try {
         const parsed = JSON.parse(savedConfigRaw);
@@ -50,24 +49,21 @@ const App: React.FC = () => {
       } catch (e) {}
     }
 
-    // 2. INTENTO NUBE
-    const config = await fetchMasterConfig(username, haUrl, haToken);
-    
-    if (config) {
-      applyConfig(config);
-      setSyncState('success');
-      setIsAuthenticated(true);
-    } else {
-      // 3. SI NO HAY NUBE: Ver si podemos entrar con lo local
-      if (savedConfigRaw) {
-        console.log("[NEXUS] Entrando con caché local. Nube no disponible.");
-        setIsAuthenticated(true);
+    try {
+      const config = await fetchMasterConfig(username, haUrl, haToken);
+      
+      if (config) {
+        applyConfig(config);
         setSyncState('success');
       } else {
-        // Primera vez absoluta
-        setSyncState('error');
-        setIsAuthenticated(true); // Permitimos entrar para que vaya a ajustes
+        console.warn("[RM] No se encontró config en HA, usando local si existe.");
+        setSyncState(savedConfigRaw ? 'success' : 'error');
       }
+      setIsAuthenticated(true);
+    } catch (err) {
+      console.error("[RM] Error en secuencia de inicio:", err);
+      setSyncState('error');
+      setIsAuthenticated(true);
     }
   }, []);
 
@@ -85,7 +81,7 @@ const App: React.FC = () => {
     const formalName = username.trim().toLowerCase() === 'juanmi' ? 'Juanmi' : 
                        username.trim().toLowerCase() === 'noemi' ? 'Noemi' : username;
     
-    localStorage.setItem('nexus_ session_active', 'true');
+    localStorage.setItem('nexus_session_active', 'true');
     localStorage.setItem('nexus_user', formalName);
     setUser(formalName);
     startupSequence(formalName);
@@ -108,8 +104,8 @@ const App: React.FC = () => {
             <div className="w-24 h-24 border-2 border-blue-500/10 rounded-full mx-auto" />
             <div className="absolute inset-0 border-t-2 border-blue-500 rounded-full animate-spin shadow-[0_0_50px_rgba(59,130,246,0.3)]" />
             <div className="mt-12 space-y-4">
-               <h3 className="text-blue-400 font-black text-[11px] uppercase tracking-[0.8em] animate-pulse">Handshake Nube</h3>
-               <p className="text-[8px] text-white/30 font-mono uppercase tracking-[0.2em]">Sincronizando Sensor Maestro...</p>
+               <h3 className="text-blue-400 font-black text-[11px] uppercase tracking-[0.8em] animate-pulse">Sincronizando RM Home Core</h3>
+               <p className="text-[8px] text-white/30 font-mono uppercase tracking-[0.2em]">Recuperando rm_config_{user.toLowerCase()}...</p>
             </div>
          </div>
       </div>
@@ -145,13 +141,13 @@ const App: React.FC = () => {
             <div className="flex items-center gap-3 mt-1">
                <div className={`w-2 h-2 rounded-full ${syncState === 'error' ? 'bg-orange-500' : 'bg-green-500'} animate-pulse`} />
                <p className="text-white/40 text-[9px] uppercase tracking-[0.4em] font-black">
-                  {syncState === 'error' ? 'MODO LOCAL: Sincronización Pendiente' : `NUBE ACTIVA // ${user}`}
+                  {syncState === 'error' ? 'DATOS: Usando Caché Local' : `RM NÚCLEO SINCRONIZADO // ${user}`}
                </p>
             </div>
           </div>
           <button onClick={() => setShowAI(!showAI)} className="flex items-center gap-3 px-6 py-3 glass rounded-full border border-blue-400/20 hover:bg-blue-400/10 transition-all group">
              <span className={`w-2 h-2 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-white/20'}`} />
-             <span className="text-[10px] font-black uppercase tracking-widest">Protocolo IA</span>
+             <span className="text-[10px] font-black uppercase tracking-widest">RM Protocolo IA</span>
           </button>
         </header>
 

@@ -1,17 +1,14 @@
 
 export type WidgetType = 'sensor' | 'chart' | 'switch' | 'climate' | 'checklist' | 'button';
 
-export interface WidgetConfig {
+export interface SensorData {
   id: string;
-  entity_id: string;
-  type: WidgetType;
-  title: string;
-  icon?: string;
-  unit?: string;
-  colSpan: 1 | 2;
-  color?: string;
-  historyHours?: number;
-  historyPoints?: number;
+  name: string;
+  value: string | number;
+  unit: string;
+  icon: string;
+  type: string;
+  trend?: 'up' | 'down' | 'stable';
 }
 
 export interface UserLocation {
@@ -22,17 +19,6 @@ export interface UserLocation {
   lastSeen: string;
   battery: number;
   status: string;
-  history?: { lat: number; lng: number; time: string }[];
-}
-
-export interface SensorData {
-  id: string;
-  name: string;
-  value: string | number;
-  unit: string;
-  icon: string;
-  type: string;
-  trend?: 'up' | 'down' | 'stable';
 }
 
 export interface WeatherData {
@@ -44,22 +30,11 @@ export interface WeatherData {
   wind: number;
 }
 
-export interface FireflyConfig {
-  use_sheets_mirror?: boolean;
-  sheets_csv_url?: string;
-  url?: string;
-  token?: string;
-  main_account_id?: string;
-  proxy_url?: string;
-}
-
 export interface VehicleConfig {
   battery_entity: string;
   range_entity: string;
   odometer_entity: string;
   fuel_entity: string;
-  fuel_unit: 'liters' | 'percentage';
-  tank_capacity: number;
   fuel_range_entity: string;
   service_km_entity: string;
   saving_entity: string;
@@ -76,10 +51,35 @@ export interface VehicleConfig {
   windows_entity: string;
   last_update_entity: string;
   image_url: string;
-  refresh_script?: string;
-  extra_entities?: string[];
-  tracker_entity?: string; 
-  user_entity?: string; 
+  refresh_script: string;
+  extra_entities: string[];
+  tracker_entity: string;
+  user_entity: string;
+  fuel_unit: string;
+  tank_capacity: number;
+}
+
+export interface CustomFinanceWidget {
+  id: string;
+  type: 'kpi' | 'bar' | 'line' | 'pie';
+  title: string;
+  // Coordenadas para KPI (Celda única)
+  cell?: string; // Ej: "B4"
+  // Coordenadas para Gráficos (Rangos)
+  labelRange?: string; // Ej: "A2:A13"
+  valueRange?: string; // Ej: "C2:C13"
+  color?: string;
+  unit?: string;
+}
+
+export interface FireflyConfig {
+  use_sheets_mirror?: boolean;
+  sheets_csv_url?: string;
+  url?: string;
+  token?: string;
+  main_account_id?: string;
+  proxy_url?: string;
+  custom_widgets?: CustomFinanceWidget[];
 }
 
 export interface HomeAssistantConfig {
@@ -92,7 +92,7 @@ export interface HomeAssistantConfig {
   solar_monthly_entity?: string;
   grid_consumption_entity?: string;
   grid_export_entity?: string; 
-  house_consumption_entity?: string; // Nuevo sensor manual de consumo
+  house_consumption_entity?: string;
   energy_cost_entity?: string;
   energy_extra_entities?: string[];
   car_battery_entity?: string;
@@ -117,4 +117,17 @@ export enum AppSection {
   MAPS = 'maps',
   SHEETS = 'sheets',
   SETTINGS = 'settings'
+}
+
+export interface WidgetConfig {
+  id: string;
+  entity_id: string;
+  type: WidgetType;
+  title: string;
+  icon?: string;
+  unit?: string;
+  colSpan: 1 | 2;
+  color?: string;
+  historyHours?: number;
+  historyPoints?: number;
 }
