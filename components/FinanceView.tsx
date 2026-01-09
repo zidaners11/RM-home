@@ -1,11 +1,39 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { HomeAssistantConfig } from '../types';
+import { HomeAssistantConfig, CustomFinanceWidget } from '../types';
 import { fetchFinanceFromSheets } from '../fireflyService';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   Line, PieChart, Pie, Cell, Legend, Area, ComposedChart, LabelList
 } from 'recharts';
+
+// Added index signature to CategoryData to fix Recharts type compatibility
+interface CategoryData {
+  [key: string]: any;
+  name: string;
+  budget: number;
+  real: number;
+  remaining: number;
+  percent: number;
+  transactions: TransactionData[];
+}
+
+interface TransactionData {
+  fecha: string;
+  desc: string;
+  monto: string;
+  cat: string;
+  montoNum: number;
+}
+
+interface HistoryPoint {
+  mes: string;
+  ingresos: number;
+  gastosReal: number;
+  gastosPrevisto: number;
+  ahorroNeto: number;
+  ahorroAcumulado: number;
+}
 
 const FinanceView: React.FC = () => {
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig | null>(null);
@@ -39,7 +67,7 @@ const FinanceView: React.FC = () => {
     return months[monthIdx];
   };
 
-  const parseSpanishNum = (val: any) => {
+  const parseSpanishNum = (val: any): number => {
     if (val === undefined || val === null || val === '0' || val === '-' || val === "") return 0;
     let str = String(val).trim().replace('€', '').replace(/\s/g, '');
     const isNegative = str.includes('-') || str.includes('(');
@@ -73,7 +101,7 @@ const FinanceView: React.FC = () => {
     const activeMonth = normalizeText(getActiveMonth());
     const rows = sheetData.matrix;
 
-    const transactions = rows
+    const transactions: TransactionData[] = rows
       .slice(1, 150)
       .filter((r: string[]) => r[0] && r[0] !== "Fecha")
       .map((r: string[]) => ({
@@ -84,7 +112,7 @@ const FinanceView: React.FC = () => {
         montoNum: parseSpanishNum(r[2])
       }));
 
-    const categories = rows
+    const categories: CategoryData[] = rows
       .filter((r: string[]) => normalizeText(r[5]) === activeMonth)
       .map((r: string[]) => {
         const name = r[6] || "Sin nombre";
@@ -93,18 +121,18 @@ const FinanceView: React.FC = () => {
         const remaining = budget - real;
         const percent = budget > 0 ? Math.round((real / budget) * 100) : 0;
         
-        const relatedTx = transactions.filter(tx => 
+        const relatedTx = transactions.filter((tx: TransactionData) => 
           normalizeText(tx.cat).includes(normalizeText(name)) || 
           normalizeText(name).includes(normalizeText(tx.cat))
         );
 
         return { name, budget, real, remaining, percent, transactions: relatedTx };
       })
-      .filter(c => c.name && !["Categoria", "Subtotal", "Total"].includes(c.name))
-      .sort((a, b) => b.percent - a.percent);
+      .filter((c: CategoryData) => c.name && !["Categoria", "Subtotal", "Total"].includes(c.name))
+      .sort((a: CategoryData, b: CategoryData) => b.percent - a.percent);
 
     let runningTotal = 0;
-    const history = rows
+    const history: HistoryPoint[] = rows
       .map((r: string[]) => {
         const ahorroMes = parseSpanishNum(r[14]);
         if (r[10] && r[10] !== "Mes") {
@@ -119,16 +147,15 @@ const FinanceView: React.FC = () => {
           ahorroAcumulado: runningTotal,
         };
       })
-      .filter(h => h.mes && h.mes !== "Mes" && (h.ingresos !== 0 || h.gastosReal !== 0 || h.ahorroNeto !== 0));
+      .filter((h: HistoryPoint) => h.mes && h.mes !== "Mes" && (h.ingresos !== 0 || h.gastosReal !== 0 || h.ahorroNeto !== 0));
 
-    const currentStats = history.find(h => normalizeText(h.mes) === activeMonth) || history[history.length - 1];
+    const currentStats = history.find((h: HistoryPoint) => normalizeText(h.mes) === activeMonth) || history[history.length - 1];
     const saldoO14 = parseSpanishNum(rows[13]?.[14]);
 
     const ahorroPercent = currentStats?.ingresos > 0 ? Math.round((currentStats.ahorroNeto / currentStats.ingresos) * 100) : 0;
     const gastoPercent = currentStats?.gastosPrevisto > 0 ? Math.round((currentStats.gastosReal / currentStats.gastosPrevisto) * 100) : 0;
 
-    // Obtener KPIs personalizados de las coordenadas indicadas
-    const customKPIs = (haConfig?.finance?.custom_widgets || []).map(w => {
+    const customKPIs = (haConfig?.finance?.custom_widgets || []).map((w: CustomFinanceWidget) => {
       const rawVal = w.cell ? sheetData.getCellValue(w.cell) : "0";
       return {
         ...w,
@@ -215,7 +242,7 @@ const FinanceView: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto no-scrollbar p-8 space-y-8">
-            {processed?.categories.map((cat, idx) => (
+            {processed?.categories.map((cat: CategoryData, idx: number) => (
               <div key={idx} className="space-y-4">
                 <div className="bg-white/[0.04] p-6 rounded-[35px] border border-white/10 shadow-xl">
                   <div className="flex justify-between items-start mb-4">
@@ -239,7 +266,7 @@ const FinanceView: React.FC = () => {
                   {cat.transactions.length > 0 ? (
                     <div className="space-y-2 border-t border-white/5 pt-4">
                       <p className="text-[9px] font-black text-white/10 uppercase tracking-[0.4em] mb-4 ml-2">Movimientos Relacionados</p>
-                      {cat.transactions.map((tx, txIdx) => (
+                      {cat.transactions.map((tx: TransactionData, txIdx: number) => (
                         <div key={txIdx} className="flex justify-between items-center px-6 py-3 bg-white/[0.02] rounded-2xl border border-white/5 group hover:bg-white/[0.05] transition-all">
                           <div className="flex items-center gap-6 min-w-0">
                             <span className="text-[10px] font-mono text-white/20 uppercase w-20">{tx.fecha}</span>
@@ -277,7 +304,7 @@ const FinanceView: React.FC = () => {
                   ))}
                 </defs>
                 <Pie 
-                  data={processed?.categories} 
+                  data={processed?.categories || []} 
                   dataKey="real" 
                   nameKey="name" 
                   cx="50%" cy="40%" 
@@ -287,7 +314,7 @@ const FinanceView: React.FC = () => {
                   stroke="rgba(255,255,255,0.05)"
                   strokeWidth={3}
                 >
-                  {processed?.categories.map((_, index) => (
+                  {processed?.categories.map((_: CategoryData, index: number) => (
                     <Cell key={`cell-${index}`} fill={`url(#pieGrad-${index % COLORS.length})`} />
                   ))}
                 </Pie>
@@ -353,7 +380,12 @@ const FinanceView: React.FC = () => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: '900', textTransform: 'uppercase'}} />
+                <XAxis 
+                  dataKey="mes" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: '900'}} 
+                />
                 <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.2)', fontSize: 12}} />
                 <Tooltip 
                   formatter={(value: number, name: string) => {
@@ -427,7 +459,7 @@ const FinanceView: React.FC = () => {
                   <div className="h-px flex-1 bg-white/5" />
                </h4>
             </div>
-            {processed.customKPIs.map((kpi, i) => (
+            {processed.customKPIs.map((kpi: any, i: number) => (
               <div key={i} className={`glass p-6 rounded-[35px] border ${getAccentColor(kpi.color)} bg-black/40 shadow-xl flex flex-col justify-between h-[180px] group hover:scale-[1.02] transition-transform`}>
                  <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">{kpi.title || `KPI ${kpi.cell}`}</p>
                  <div>
