@@ -56,12 +56,10 @@ const App: React.FC = () => {
         applyConfig(config);
         setSyncState('success');
       } else {
-        console.warn("[RM] No se encontró config en HA, usando local si existe.");
         setSyncState(savedConfigRaw ? 'success' : 'error');
       }
       setIsAuthenticated(true);
     } catch (err) {
-      console.error("[RM] Error en secuencia de inicio:", err);
       setSyncState('error');
       setIsAuthenticated(true);
     }
@@ -101,11 +99,10 @@ const App: React.FC = () => {
            style={{ backgroundImage: `url('${bgUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
          <div className="absolute inset-0 bg-black/90 backdrop-blur-3xl" />
          <div className="relative text-center">
-            <div className="w-24 h-24 border-2 border-blue-500/10 rounded-full mx-auto" />
+            <div className="w-20 h-20 border-2 border-blue-500/10 rounded-full mx-auto" />
             <div className="absolute inset-0 border-t-2 border-blue-500 rounded-full animate-spin shadow-[0_0_50px_rgba(59,130,246,0.3)]" />
-            <div className="mt-12 space-y-4">
-               <h3 className="text-blue-400 font-black text-[11px] uppercase tracking-[0.8em] animate-pulse">Sincronizando RM Home Core</h3>
-               <p className="text-[8px] text-white/30 font-mono uppercase tracking-[0.2em]">Recuperando rm_config_{user.toLowerCase()}...</p>
+            <div className="mt-12 space-y-4 px-6">
+               <h3 className="text-blue-400 font-black text-[10px] uppercase tracking-[0.5em] animate-pulse">Sincronizando RM Home Core</h3>
             </div>
          </div>
       </div>
@@ -116,15 +113,13 @@ const App: React.FC = () => {
     <div 
       className="flex flex-col md:flex-row h-screen w-screen overflow-hidden text-white relative transition-all duration-1000"
       style={{ 
-        backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.75), rgba(2, 6, 23, 0.85)), url('${bgUrl}')`,
+        backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.7), rgba(2, 6, 23, 0.9)), url('${bgUrl}')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
         backgroundAttachment: 'fixed'
       }}
     >
-      <div className="absolute inset-0 bg-black/10 pointer-events-none z-0" />
-      
       <Sidebar 
         activeSection={activeSection} 
         onSectionChange={setActiveSection} 
@@ -132,26 +127,22 @@ const App: React.FC = () => {
         onForceSync={() => startupSequence(user)} 
       />
       
-      <main className="flex-1 relative z-10 p-4 md:p-8 flex flex-col h-full overflow-hidden">
-        <header className="flex justify-between items-center mb-8 px-2 shrink-0">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
+      <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden mobile-safe-top">
+        <header className="flex justify-between items-center mb-4 md:mb-8 px-6 md:px-8 py-4 shrink-0">
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-3xl font-light tracking-tight text-white/90 truncate">
               RM <span className="font-bold text-blue-400">Home</span> Hub
             </h1>
-            <div className="flex items-center gap-3 mt-1">
-               <div className={`w-2 h-2 rounded-full ${syncState === 'error' ? 'bg-orange-500' : 'bg-green-500'} animate-pulse`} />
-               <p className="text-white/40 text-[9px] uppercase tracking-[0.4em] font-black">
-                  {syncState === 'error' ? 'DATOS: Usando Caché Local' : `RM NÚCLEO SINCRONIZADO // ${user}`}
-               </p>
-            </div>
+            <p className="text-white/20 text-[8px] md:text-[9px] uppercase tracking-[0.3em] font-black truncate">
+               {user} // {syncState === 'error' ? 'Offline Cache' : 'Core Sync'}
+            </p>
           </div>
-          <button onClick={() => setShowAI(!showAI)} className="flex items-center gap-3 px-6 py-3 glass rounded-full border border-blue-400/20 hover:bg-blue-400/10 transition-all group">
-             <span className={`w-2 h-2 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-white/20'}`} />
-             <span className="text-[10px] font-black uppercase tracking-widest">RM Protocolo IA</span>
+          <button onClick={() => setShowAI(!showAI)} className="p-3 glass rounded-full border border-blue-400/20 active:scale-90 transition-all">
+             <div className={`w-2 h-2 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-white/40'}`} />
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-1000">
+        <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-8 pb-32 md:pb-8">
            {activeSection === AppSection.DASHBOARD && <Dashboard key="dash" />}
            {activeSection === AppSection.ENERGY && <EnergyView key="energy" />}
            {activeSection === AppSection.VEHICLE && <VehicleView key="vehicle" />}

@@ -3,7 +3,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Nexus Home Hub</title>
     <script>
         window.NEXUS_CONFIG = window.NEXUS_CONFIG || {};
@@ -12,63 +12,59 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+        :root {
+            --sat: env(safe-area-inset-top);
+            --sar: env(safe-area-inset-right);
+            --sab: env(safe-area-inset-bottom);
+            --sal: env(safe-area-inset-left);
+        }
+
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow-x: hidden;
             background-color: #020617;
-            /* Fondo solicitado integrado perfectamente */
             background-image: url('https://i.redd.it/6qq8lk9qjqp21.jpg');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
-            transition: background-image 1.5s ease-in-out;
+            color: white;
+            -webkit-tap-highlight-color: transparent;
         }
+
         #root {
-            height: 100vh;
+            min-height: 100vh;
             width: 100vw;
-            /* Graduación de oscuridad para que el fondo se vea pero no moleste a la lectura */
-            background: radial-gradient(circle at 50% 50%, rgba(2, 6, 23, 0.5) 0%, rgba(2, 6, 23, 0.85) 100%);
+            background: radial-gradient(circle at 50% 50%, rgba(2, 6, 23, 0.4) 0%, rgba(2, 6, 23, 0.9) 100%);
+            padding-top: var(--sat);
+            padding-bottom: var(--sab);
         }
+
         .glass {
-            background: rgba(15, 23, 42, 0.3);
-            backdrop-filter: blur(30px) saturate(180%);
-            -webkit-backdrop-filter: blur(30px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 8px 32px -1px rgba(0, 0, 0, 0.6);
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(20px) saturate(160%);
+            -webkit-backdrop-filter: blur(20px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.5);
         }
-        .glass-dark {
-            background: rgba(2, 6, 23, 0.85);
-            backdrop-filter: blur(45px);
-            -webkit-backdrop-filter: blur(45px);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-        }
-        ::-webkit-scrollbar { width: 3px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.3); border-radius: 10px; }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
         h1, h2, h3, h4, button {
             font-family: 'Orbitron', sans-serif;
-            letter-spacing: 0.15em;
+            letter-spacing: 0.05em;
         }
-        
-        .scanline {
-            width: 100%;
-            height: 2px;
-            background: rgba(59, 130, 246, 0.2);
-            position: absolute;
-            top: 0;
-            left: 0;
-            animation: scanning 4s linear infinite;
-            z-index: 5;
-            pointer-events: none;
-        }
-        @keyframes scanning {
-            0% { top: 0; opacity: 0; }
-            5% { opacity: 1; }
-            95% { opacity: 1; }
-            100% { top: 100%; opacity: 0; }
+
+        /* Ajustes específicos para iPhone 15 Pro */
+        @media (max-width: 430px) {
+            .main-content {
+                padding-top: calc(var(--sat) + 10px);
+                padding-bottom: calc(var(--sab) + 90px);
+            }
+            .glass { border-radius: 30px !important; }
+            h1 { font-size: 1.4rem !important; }
         }
     </style>
 <script type="importmap">
