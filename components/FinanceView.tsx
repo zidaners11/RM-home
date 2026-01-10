@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { HomeAssistantConfig } from '../types';
 import { fetchFinanceFromSheets } from '../fireflyService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface TransactionData {
   fecha: string; desc: string; monto: string; cat: string; montoNum: number;
@@ -63,13 +63,13 @@ const FinanceView: React.FC = () => {
       const budget = Math.abs(parseSpanishNum(r[7]));
       const real = Math.abs(parseSpanishNum(r[8]));
       return { name: r[6], budget, real, remaining: budget - real, percent: budget > 0 ? Math.round((real / budget) * 100) : 0 };
-    }).filter(c => c.name && !["Categoria", "Subtotal", "Total"].includes(c.name)).sort((a, b) => b.percent - a.percent);
+    }).filter((c: any) => c.name && !["Categoria", "Subtotal", "Total"].includes(c.name)).sort((a: any, b: any) => b.percent - a.percent);
 
-    const history = rows.filter(r => r[10] && r[10] !== "Mes" && r[10] !== "Total").map((r: string[]) => ({
+    const history = rows.filter((r: string[]) => r[10] && r[10] !== "Mes" && r[10] !== "Total").map((r: string[]) => ({
       mes: r[10], ingresos: Math.abs(parseSpanishNum(r[11])), gastos: Math.abs(parseSpanishNum(r[15])), ahorro: parseSpanishNum(r[14])
     }));
 
-    const current = history.find(h => normalizeText(h.mes) === activeMonth) || history[history.length - 1];
+    const current = history.find((h: any) => normalizeText(h.mes) === activeMonth) || history[history.length - 1];
     return { categories, history, current, saldo: parseSpanishNum(rows[13]?.[14]), transactions };
   }, [sheetData]);
 
@@ -79,7 +79,7 @@ const FinanceView: React.FC = () => {
     <div className="flex flex-col gap-4 pb-32 h-full overflow-y-auto no-scrollbar px-1">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'AHORRO_MES', val: processed?.current?.ahorro, color: (processed?.current?.ahorro || 0) < 0 ? 'text-green-400' : 'text-red-400' },
+          { label: 'AHORRO_MES', val: processed?.current?.ahorro, color: (processed?.current?.ahorro || 0) > 0 ? 'text-green-400' : 'text-red-400' },
           { label: 'INGRESOS', val: processed?.current?.ingresos, color: 'text-green-400' },
           { label: 'GASTOS', val: processed?.current?.gastos, color: 'text-red-400' },
           { label: 'SALDO_CORE', val: processed?.saldo, color: 'text-purple-400' }
@@ -109,7 +109,7 @@ const FinanceView: React.FC = () => {
         <div className="glass rounded-[35px] border border-white/10 bg-black/40 p-6 md:p-10 flex flex-col gap-6">
           <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400 italic">Presupuesto por Categoría (%)</h4>
           <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">
-            {processed?.categories.map((cat, i) => (
+            {processed?.categories.map((cat: any, i: number) => (
               <div key={i} className="bg-white/[0.03] p-4 rounded-3xl border border-white/5">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-[11px] font-black text-white truncate uppercase tracking-widest">{cat.name}</span>
@@ -126,7 +126,7 @@ const FinanceView: React.FC = () => {
         <div className="glass rounded-[35px] border border-white/10 bg-black/40 p-6 md:p-10 flex flex-col gap-6">
           <h4 className="text-[10px] font-black uppercase tracking-widest text-green-400 italic">Transacciones del Período</h4>
           <div className="space-y-3 overflow-y-auto max-h-[400px] no-scrollbar">
-            {processed?.transactions.map((tx, i) => (
+            {processed?.transactions.map((tx: any, i: number) => (
               <div key={i} className="flex justify-between items-center p-3 rounded-2xl border-b border-white/5">
                 <div className="min-w-0">
                   <p className="text-[10px] font-black text-white truncate uppercase tracking-tight">{tx.desc}</p>
