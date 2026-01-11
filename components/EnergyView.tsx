@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, YAxis, CartesianGrid, Legend, LabelList } from 'recharts';
 import { fetchHAStates, fetchHAHistory } from '../homeAssistantService';
 import { HomeAssistantConfig } from '../types';
@@ -17,49 +17,102 @@ const EnergyView: React.FC = () => {
   const [mainHistory, setMainHistory] = useState<any[]>([]);
   const [extraHistory, setExtraHistory] = useState<{[key: string]: any[]}>({});
   const [loading, setLoading] = useState(true);
+  const refreshTimerRef = useRef<number | null>(null);
+
+  // Carga de estados instantáneos (Rápida)
+  const fetchInstantStates = useCallback(async (config: HomeAssistantConfig) => {
+    const data = await fetchHAStates(config.url, config.token);
+    if (data) setStates(data);
+  }, []);
+
+  // Carga de historiales (Pesada)
+  const fetchHistories = useCallback(async (config: HomeAssistantConfig) => {
+    const historyPromises = [
+      fetchHAHistory(config.url, config.token, config.solar_production_entity || '', 24),
+      fetchHAHistory(config.url, config.token, config.grid_consumption_entity || '', 24)
+    ];
+
+    const extraIds = config.energy_extra_entities || [];
+    extraIds.forEach(id => {
+      historyPromises.push(fetchHAHistory(config.url, config.token, id, 24));
+    });
+
+    const results = await Promise.all(historyPromises);
+    
+    // Procesar Historial Principal
+    const solarHist = results[0];
+    const gridHist = results[1];
+    const dayData = Array.from({ length: 24 }, (_, i) => ({ 
+      time: i.toString().padStart(2, '0') + ':00', 
+      solar: 0, 
+      grid: 0 
+    }));
+
+    solarHist?.forEach((e: any) => { 
+      const d = new Date(e.last_changed); 
+      dayData[d.getHours()].solar = Math.round(parseFloat(e.state) || 0); 
+    });
+    gridHist?.forEach((e: any) => { 
+      const d = new Date(e.last_changed); 
+      dayData[d.getHours()].grid = Math.round(parseFloat(e.state) || 0); 
+    });
+    setMainHistory(dayData);
+
+    // Procesar Historiales Extra
+    const extraResults = results.slice(2);
+    const newExtraHistory: {[key: string]: any[]} = {};
+    extraResults.forEach((h, idx) => {
+      const id = extraIds[idx];
+      newExtraHistory[id] = (h || [])
+        .map((e: any) => ({ v: parseFloat(e.state) }))
+        .filter((x: any) => !isNaN(x.v));
+    });
+    setExtraHistory(newExtraHistory);
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('nexus_ha_config');
     if (saved) {
       const parsed = JSON.parse(saved);
       setHaConfig(parsed);
-      refreshData(parsed);
+      
+      // Primera carga completa
+      Promise.all([
+        fetchInstantStates(parsed),
+        fetchHistories(parsed)
+      ]).finally(() => setLoading(false));
+
+      // Intervalo para estados instantáneos (cada 5 segs)
+      refreshTimerRef.current = window.setInterval(() => {
+        fetchInstantStates(parsed);
+      }, 5000);
+
+      // Intervalo para historiales (cada 5 min para no saturar)
+      const historyInterval = window.setInterval(() => {
+        fetchHistories(parsed);
+      }, 300000);
+
+      return () => {
+        if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+        clearInterval(historyInterval);
+      };
     }
-  }, []);
-
-  const refreshData = async (config: HomeAssistantConfig) => {
-    const data = await fetchHAStates(config.url, config.token);
-    if (data) setStates(data);
-    
-    // Main history
-    const solarHist = await fetchHAHistory(config.url, config.token, config.solar_production_entity || '', 24);
-    const gridHist = await fetchHAHistory(config.url, config.token, config.grid_consumption_entity || '', 24);
-    const dayData = Array.from({ length: 24 }, (_, i) => ({ time: i.toString().padStart(2, '0') + ':00', solar: 0, grid: 0 }));
-    solarHist?.forEach((e: any) => { const d = new Date(e.last_changed); dayData[d.getHours()].solar = Math.round(parseFloat(e.state) || 0); });
-    gridHist?.forEach((e: any) => { const d = new Date(e.last_changed); dayData[d.getHours()].grid = Math.round(parseFloat(e.state) || 0); });
-    setMainHistory(dayData);
-
-    // Extra sensors history
-    if (config.energy_extra_entities?.length) {
-      const histories: any = {};
-      for (const id of config.energy_extra_entities) {
-        const h = await fetchHAHistory(config.url, config.token, id, 24);
-        histories[id] = (h || []).map((e: any) => ({ v: parseFloat(e.state) })).filter((x:any) => !isNaN(x.v));
-      }
-      setExtraHistory(histories);
-    }
-
-    setLoading(false);
-  };
+  }, [fetchInstantStates, fetchHistories]);
 
   const getVal = (id?: string) => states.find(st => st.entity_id === id)?.state || '0';
   const getUnit = (id?: string) => states.find(st => st.entity_id === id)?.attributes?.unit_of_measurement || '';
   const getFriendly = (id?: string) => states.find(st => st.entity_id === id)?.attributes?.friendly_name || id;
 
-  if (loading) return <div className="h-full flex items-center justify-center animate-pulse text-yellow-400 font-black text-[10px] uppercase tracking-widest">Cargando Matriz Energética...</div>;
+  if (loading) return (
+    <div className="h-full flex flex-col items-center justify-center gap-4">
+      <div className="w-12 h-12 border-2 border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin" />
+      <p className="text-yellow-400 font-black text-[10px] uppercase tracking-[0.4em] animate-pulse">Sincronizando Matriz Energética...</p>
+    </div>
+  );
 
   return (
     <div className="space-y-4 pb-32 h-full overflow-y-auto no-scrollbar px-1">
+       {/* KPIs Superiores */}
        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: 'SOLAR_INPUT', val: getVal(haConfig?.solar_production_entity), color: 'text-yellow-400', border: 'border-yellow-500/20' },
@@ -67,13 +120,17 @@ const EnergyView: React.FC = () => {
             { label: 'EXPORT_RED', val: getVal(haConfig?.grid_export_entity), color: 'text-orange-400', border: 'border-orange-500/20' },
             { label: 'HOME_TOTAL', val: getVal(haConfig?.house_consumption_entity), color: 'text-purple-400', border: 'border-purple-500/20' }
           ].map((kpi, idx) => (
-            <div key={idx} className={`glass p-4 rounded-[25px] border ${kpi.border} bg-black/40 h-[100px] md:h-[160px] flex flex-col justify-between`}>
-               <p className={`text-[7px] md:text-[9px] uppercase font-black italic opacity-60 ${kpi.color}`}>{kpi.label}</p>
+            <div key={idx} className={`glass p-4 rounded-[25px] border ${kpi.border} bg-black/40 h-[100px] md:h-[160px] flex flex-col justify-between transition-all duration-500`}>
+               <div className="flex justify-between items-start">
+                  <p className={`text-[7px] md:text-[9px] uppercase font-black italic opacity-60 ${kpi.color}`}>{kpi.label}</p>
+                  <div className="w-1 h-1 rounded-full bg-blue-400 animate-pulse" />
+               </div>
                <h4 className={`text-xl md:text-4xl font-black italic truncate ${kpi.color}`}>{formatNexusNum(kpi.val)} <span className="text-[7px] md:text-xs not-italic opacity-30">W</span></h4>
             </div>
           ))}
        </div>
 
+       {/* Gráfico Principal */}
        <div className="glass p-5 md:p-8 rounded-[30px] border border-white/10 h-[350px] md:h-[500px] bg-black/60 relative overflow-hidden">
           <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-white/20 mb-4">Telemetría_Analítica_24H</h4>
           <ResponsiveContainer width="100%" height="90%">
@@ -93,6 +150,7 @@ const EnergyView: React.FC = () => {
           </ResponsiveContainer>
        </div>
 
+       {/* Sensores Extra */}
        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {(haConfig?.energy_extra_entities || []).map((id, idx) => {
             const chartData = extraHistory[id] || [];

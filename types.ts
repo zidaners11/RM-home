@@ -63,11 +63,9 @@ export interface CustomFinanceWidget {
   id: string;
   type: 'kpi' | 'bar' | 'line' | 'pie';
   title: string;
-  // Coordenadas para KPI (Celda única)
-  cell?: string; // Ej: "B4"
-  // Coordenadas para Gráficos (Rangos)
-  labelRange?: string; // Ej: "A2:A13"
-  valueRange?: string; // Ej: "C2:C13"
+  cell?: string;
+  labelRange?: string;
+  valueRange?: string;
   color?: string;
   unit?: string;
 }
@@ -126,7 +124,7 @@ export interface WidgetConfig {
   title: string;
   icon?: string;
   unit?: string;
-  colSpan: 1 | 2;
+  colSpan: 0.5 | 1 | 2;
   color?: string;
   historyHours?: number;
   historyPoints?: number;

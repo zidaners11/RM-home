@@ -36,17 +36,17 @@
         #root {
             min-height: 100vh;
             width: 100vw;
-            background: radial-gradient(circle at 50% 50%, rgba(2, 6, 23, 0.4) 0%, rgba(2, 6, 23, 0.9) 100%);
+            background: radial-gradient(circle at 50% 50%, rgba(2, 6, 23, 0.4) 0%, rgba(2, 6, 23, 0.8) 100%);
             padding-top: var(--sat);
             padding-bottom: var(--sab);
         }
 
         .glass {
-            background: rgba(15, 23, 42, 0.4);
-            backdrop-filter: blur(20px) saturate(160%);
-            -webkit-backdrop-filter: blur(20px) saturate(160%);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.5);
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
         }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -57,7 +57,19 @@
             letter-spacing: 0.05em;
         }
 
-        /* Ajustes específicos para iPhone 15 Pro */
+        /* Ajustes específicos para botones de enlace directo */
+        .direct-link {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        .direct-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
         @media (max-width: 430px) {
             .main-content {
                 padding-top: calc(var(--sat) + 10px);
