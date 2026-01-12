@@ -99,7 +99,6 @@ const SettingsView: React.FC = () => {
     const toggle = () => {
       if (!isOpen && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        // Calculamos espacio disponible abajo para decidir si abrir hacia arriba o abajo
         const spaceBelow = window.innerHeight - rect.bottom;
         const top = spaceBelow < 300 ? rect.top - 310 : rect.bottom + 8;
 
@@ -108,7 +107,7 @@ const SettingsView: React.FC = () => {
           top: `${top}px`, 
           left: `${rect.left}px`, 
           width: `${rect.width}px`, 
-          zIndex: 999999, // Z-index masivo para ignorar menús
+          zIndex: 999999,
           maxHeight: '300px' 
         });
       }
@@ -128,7 +127,6 @@ const SettingsView: React.FC = () => {
         </div>
         {isOpen && (
           <>
-            {/* Overlay invisible con z-index alto para cerrar al hacer clic fuera */}
             <div className="fixed inset-0 z-[999998]" onClick={() => setIsOpen(false)} />
             <div className="nexus-dropdown-portal glass-dark border border-white/20 rounded-2xl p-4 bg-[#0a0f1e] shadow-[0_20px_50px_rgba(0,0,0,1)] flex flex-col" style={styles}>
               <input autoFocus placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-white/10 rounded-xl px-4 py-2 text-xs mb-3 outline-none border border-white/10 text-white" />
@@ -257,7 +255,7 @@ const SettingsView: React.FC = () => {
               </div>
               <input placeholder="URL Imagen Vehículo" value={haConfig.vehicle.image_url} onChange={e => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, image_url: e.target.value}})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-white" />
               <EntitySelector label="Script Forzar Refresco" value={haConfig.vehicle.refresh_script} filterPrefixes={['script.']} onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, refresh_script: v}})} />
-              <EntitySelector label="Entidades Extra Mapa" value={haConfig.vehicle.extra_entities} multi onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, extra_entities: v})} />
+              <EntitySelector label="Entidades Extra Mapa" value={haConfig.vehicle.extra_entities} multi onChange={(v:any) => setHaConfig({...haConfig, vehicle: {...haConfig.vehicle, extra_entities: v}})} />
             </div>
           )}
 
