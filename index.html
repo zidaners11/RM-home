@@ -57,17 +57,9 @@
             letter-spacing: 0.05em;
         }
 
-        /* Ajustes específicos para botones de enlace directo */
-        .direct-link {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
-            transition: all 0.3s ease;
-        }
-        .direct-link:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.4);
-            transform: translateY(-2px);
+        /* FIX: Asegurar que los desplegables de configuración floten sobre todo */
+        .nexus-dropdown-portal {
+            z-index: 99999 !important;
         }
 
         @media (max-width: 430px) {

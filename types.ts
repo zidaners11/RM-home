@@ -124,7 +124,7 @@ export interface WidgetConfig {
   title: string;
   icon?: string;
   unit?: string;
-  colSpan: 0.5 | 1 | 2;
+  colSpan: 0.25 | 0.5 | 1 | 2;
   color?: string;
   historyHours?: number;
   historyPoints?: number;

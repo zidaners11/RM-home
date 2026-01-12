@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { fetchHAStates, fetchHAHistory, callHAService } from '../homeAssistantService';
 import { HomeAssistantConfig } from '../types';
 import L from 'leaflet';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 
 const formatKm = (val: any) => {
   const n = parseFloat(val);
@@ -16,6 +17,7 @@ const VehicleView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
+  const [extraHistories, setExtraHistories] = useState<{[key: string]: any[]}>({});
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -33,10 +35,20 @@ const VehicleView: React.FC = () => {
   const refreshData = async (cfg: HomeAssistantConfig) => {
     const data = await fetchHAStates(cfg.url, cfg.token);
     if (data) setStates(data);
+    
     if (cfg.vehicle.tracker_entity) {
       const hist = await fetchHAHistory(cfg.url, cfg.token, cfg.vehicle.tracker_entity, 24);
       setHistory(hist || []);
     }
+
+    const extraEntities = cfg.vehicle.extra_entities || [];
+    const histories: {[key: string]: any[]} = {};
+    await Promise.all(extraEntities.map(async (id) => {
+      const h = await fetchHAHistory(cfg.url, cfg.token, id, 24);
+      histories[id] = (h || []).map((entry: any) => ({ v: parseFloat(entry.state) })).filter((e: any) => !isNaN(e.v));
+    }));
+    setExtraHistories(histories);
+    
     setLoading(false);
   };
 
@@ -103,115 +115,146 @@ const VehicleView: React.FC = () => {
   const getFriendly = (id?: string) => states.find(st => st.entity_id === id)?.attributes?.friendly_name || id;
   const getUnit = (id?: string) => states.find(st => st.entity_id === id)?.attributes?.unit_of_measurement || '';
   
-  const fuelLiters = parseFloat(getVal(config?.vehicle.fuel_entity));
-  const fuelRange = getVal(config?.vehicle.fuel_range_entity);
-  const batteryPct = getVal(config?.vehicle.battery_entity);
-  const rangeKm = getVal(config?.vehicle.range_entity);
   const chargingKw = getVal(config?.vehicle.charging_speed_entity);
   const isCharging = parseFloat(chargingKw) > 0;
 
   if (loading) return <div className="h-full flex items-center justify-center animate-pulse text-blue-400 font-black text-[10px] uppercase tracking-widest text-center">Iniciando Protocolo Lynk Gateway...</div>;
 
   return (
-    <div className="flex flex-col gap-4 pb-32 h-full overflow-y-auto no-scrollbar px-1">
-      {/* VEHICLE MAIN CARD */}
-      <div className="relative glass rounded-[35px] overflow-hidden border border-white/10 h-[260px] md:h-[420px] shrink-0 bg-black/40 shadow-2xl">
-        <img src={config?.vehicle.image_url} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="Vehículo" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-transparent" />
-        <div className="absolute top-6 left-6 md:top-10 md:left-10">
-          <h2 className="text-3xl md:text-6xl font-black text-white italic tracking-tighter uppercase leading-none">LYNK & CO <span className="text-blue-500">01</span></h2>
-          <p className="text-[8px] md:text-[10px] font-bold text-white/30 uppercase tracking-[0.4em] mt-2">Hybrid Telemetry System // RM_CORE</p>
-        </div>
+    <div className="flex flex-col gap-6 pb-32 h-full overflow-y-auto no-scrollbar px-1">
+      
+      {/* HERO SECTION: IMAGE WITH INTEGRATED EXTRA KPIS */}
+      <div className="relative glass rounded-[40px] overflow-hidden border border-white/10 h-[450px] md:h-[550px] bg-black/40 shadow-2xl group shrink-0">
+        <img src={config?.vehicle.image_url} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[4s]" alt="Vehículo" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-black/20" />
         
+        {/* TITULAR VEHÍCULO */}
+        <div className="absolute top-8 left-8 z-20">
+          <h2 className="text-3xl md:text-5xl font-black text-white italic tracking-tighter uppercase leading-none font-orbitron" style={{ fontFamily: 'Orbitron, sans-serif' }}>LYNK & CO <span className="text-blue-500">01</span></h2>
+          <p className="text-[8px] font-black text-white/40 uppercase tracking-[0.5em] mt-2">Telemetry_System // Master_Core</p>
+        </div>
+
+        {/* PANEL FLOTANTE DE EXTRAS (DENTRO DE LA IMAGEN) */}
+        <div className="absolute top-8 right-8 bottom-32 w-full max-w-[280px] md:max-w-[420px] z-30 flex flex-col pointer-events-none">
+           <div className="pointer-events-auto glass-dark border border-white/10 bg-black/60 rounded-[35px] flex-1 overflow-hidden flex flex-col backdrop-blur-3xl shadow-2xl">
+              <div className="p-5 border-b border-white/5 flex justify-between items-center bg-white/5">
+                 <span className="text-[9px] font-black uppercase text-blue-400 tracking-[0.3em]">Módulos_Extra</span>
+                 <div className="flex gap-1">
+                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" />
+                    <div className="w-1 h-1 bg-blue-500/40 rounded-full" />
+                 </div>
+              </div>
+              <div className="flex-1 overflow-y-auto no-scrollbar p-3">
+                 <div className="grid grid-cols-2 gap-3">
+                    {(config?.vehicle.extra_entities || []).map((id, idx) => {
+                       const chartData = extraHistories[id] || [];
+                       return (
+                          <div key={idx} className="glass p-3 rounded-2xl border border-white/5 bg-white/5 h-[90px] relative overflow-hidden flex flex-col justify-between group/card">
+                             <div className="absolute inset-0 opacity-20 pointer-events-none">
+                                <ResponsiveContainer width="100%" height="100%">
+                                   <AreaChart data={chartData} margin={{ top: 40, bottom: 0 }}>
+                                      <Area type="monotone" dataKey="v" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} strokeWidth={2} isAnimationActive={false} />
+                                   </AreaChart>
+                                </ResponsiveContainer>
+                             </div>
+                             <p className="text-[7px] font-black text-blue-400 uppercase truncate relative z-10">{getFriendly(id).replace('Lynk & Co ', '')}</p>
+                             <h5 className="text-lg font-black text-white italic font-orbitron relative z-10" style={{ fontFamily: 'Orbitron, sans-serif' }}>
+                                {getVal(id)} <span className="text-[7px] text-white/20 font-bold not-italic ml-1 uppercase">{getUnit(id)}</span>
+                             </h5>
+                          </div>
+                       );
+                    })}
+                 </div>
+              </div>
+              <div className="p-3 bg-white/5 border-t border-white/5 text-center">
+                 <p className="text-[7px] font-mono text-white/20 uppercase tracking-widest animate-pulse">Deslizar para más telemetría</p>
+              </div>
+           </div>
+        </div>
+
+        {/* INDICADOR CARGA */}
         {isCharging && (
-          <div className="absolute top-6 right-6 md:top-10 md:right-10 glass px-4 py-2 rounded-2xl border border-green-500/30 bg-green-500/10 flex items-center gap-3">
-             <div className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
-             <span className="text-[10px] font-black uppercase text-green-400">Charging: {chargingKw} kW</span>
+          <div className="absolute top-32 left-8 glass px-4 py-2 rounded-xl border border-green-500/30 bg-green-500/10 flex items-center gap-3 backdrop-blur-xl z-20">
+             <div className="w-2 h-2 rounded-full bg-green-500 animate-ping shadow-[0_0_10px_green]" />
+             <span className="text-[9px] font-black uppercase text-green-400 tracking-widest">{chargingKw} kW</span>
           </div>
         )}
 
-        <div className="absolute bottom-6 left-6 right-6 grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
-          <div className="space-y-0.5">
-            <p className="text-[7px] md:text-[9px] font-black text-white/30 uppercase tracking-widest">Energía</p>
-            <div className="flex items-baseline gap-1">
-              <p className="text-xl md:text-4xl font-black text-white">{batteryPct}%</p>
-              <p className="text-[8px] md:text-sm font-black text-blue-400 italic">{rangeKm}km</p>
+        {/* KPIs PRINCIPALES (PIE DE IMAGEN) */}
+        <div className="absolute bottom-8 left-8 right-8 grid grid-cols-2 md:grid-cols-4 gap-6 z-20">
+          <div className="space-y-1">
+            <p className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">Energía</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-3xl md:text-5xl font-black text-white italic font-orbitron" style={{ fontFamily: 'Orbitron, sans-serif' }}>{getVal(config?.vehicle.battery_entity)}%</p>
+              <p className="text-[10px] md:text-sm font-black text-blue-400 italic">{getVal(config?.vehicle.range_entity)}km</p>
             </div>
           </div>
-          <div className="space-y-0.5">
-            <p className="text-[7px] md:text-[9px] font-black text-white/30 uppercase tracking-widest">Combustible</p>
-            <div className="flex items-baseline gap-1">
-              <p className="text-xl md:text-4xl font-black text-yellow-500">{fuelLiters}L</p>
-              <p className="text-[8px] md:text-sm font-black text-yellow-500/60 italic">{fuelRange}km</p>
+          <div className="space-y-1">
+            <p className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">Fuel</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-3xl md:text-5xl font-black text-yellow-500 italic font-orbitron" style={{ fontFamily: 'Orbitron, sans-serif' }}>{getVal(config?.vehicle.fuel_entity)}L</p>
+              <p className="text-[10px] md:text-sm font-black text-yellow-500/60 italic">{getVal(config?.vehicle.fuel_range_entity)}km</p>
             </div>
           </div>
-          <div className="space-y-0.5 hidden md:block">
-            <p className="text-[7px] md:text-[9px] font-black text-white/30 uppercase tracking-widest">Odómetro</p>
-            <p className="text-lg md:text-4xl font-black text-white/80">{formatKm(getVal(config?.vehicle.odometer_entity))} <span className="text-[8px] md:text-sm italic">km</span></p>
+          <div className="space-y-1 hidden md:block">
+            <p className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">Odómetro</p>
+            <p className="text-2xl md:text-4xl font-black text-white/80 italic font-orbitron" style={{ fontFamily: 'Orbitron, sans-serif' }}>{formatKm(getVal(config?.vehicle.odometer_entity))} <span className="text-xs italic">km</span></p>
           </div>
         </div>
       </div>
-      
-      {/* GRID LAYOUT FOR MAP AND INFO */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-4 relative">
-          {/* MAP AREA */}
-          <div className="glass rounded-[35px] border border-white/10 h-[450px] md:h-[650px] overflow-hidden relative bg-black shadow-2xl">
-             <div ref={mapContainerRef} className="w-full h-full z-0 opacity-80" />
-             
-             {/* FLOATING EXTRA KPIs BAR - BIGGER AND MORE LEGIBLE */}
-             <div className="absolute bottom-6 left-6 right-6 z-[1000] flex gap-3 overflow-x-auto no-scrollbar">
-                {(config?.vehicle.extra_entities || []).map((id, idx) => (
-                  <div key={idx} className="glass-dark px-6 py-5 rounded-[25px] border border-white/20 flex flex-col justify-center min-w-[150px] backdrop-blur-3xl bg-black/90 shadow-2xl">
-                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] mb-2 truncate border-b border-blue-500/20 pb-1">{getFriendly(id)}</p>
-                    <p className="text-xl font-black text-white italic truncate leading-none">
-                      {getVal(id)} <span className="text-[10px] text-white/30 font-bold not-italic ml-1 uppercase">{getUnit(id)}</span>
-                    </p>
-                  </div>
-                ))}
-             </div>
 
-             <div className="absolute top-6 left-6 glass-dark px-5 py-2.5 rounded-xl text-[9px] font-black uppercase text-blue-400 tracking-[0.3em] z-[1000] border border-blue-500/20 bg-black/90 shadow-2xl">
-                Sentinel_GPS_Bridge // LIVE_TRACK
-             </div>
-          </div>
+      {/* BOTTOM SECTION: MAP + INFO SIDEBAR */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto">
+        {/* MAP AREA */}
+        <div className="lg:col-span-2 glass rounded-[40px] border border-white/10 h-[450px] md:h-[600px] overflow-hidden relative bg-black shadow-2xl">
+           <div ref={mapContainerRef} className="w-full h-full z-0 opacity-80" />
+           <div className="absolute top-6 left-6 glass-dark px-5 py-3 rounded-2xl text-[10px] font-black uppercase text-blue-400 tracking-[0.4em] z-[1000] border border-blue-500/20 bg-black/90 shadow-2xl flex items-center gap-3">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(59,130,246,1)]" />
+              Sentinel_GPS_Bridge // LIVE_TRACK
+           </div>
+           <div className="absolute bottom-6 right-6 z-[1000] glass-dark px-4 py-2 rounded-xl text-[8px] font-mono text-white/20 bg-black/80 border border-white/5 italic">
+              MK_V4_SECURED_CONNECTION
+           </div>
         </div>
-        
+
         {/* SIDEBAR INFO */}
-        <div className="flex flex-col gap-4">
-          <div className="glass rounded-[35px] p-6 md:p-8 border border-white/10 bg-black/40 flex flex-col gap-6">
-            <div className="space-y-6">
+        <div className="flex flex-col gap-6">
+          <div className="glass rounded-[40px] p-8 border border-white/10 bg-black/40 flex flex-col gap-8 h-full shadow-2xl">
+            <div className="space-y-8">
               <div>
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400 italic mb-4">Estado General</h4>
-                <div className="space-y-4">
+                <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-blue-400 italic mb-6">Estado_Red_Sentinel</h4>
+                <div className="space-y-5">
                   {[
-                    { label: 'Cierre Central', val: getVal(config?.vehicle.lock_entity), color: 'text-green-400' },
-                    { label: 'Ubicación Actual', val: getVal(config?.vehicle.tracker_entity), color: 'text-blue-400' },
-                    { label: 'Potencia Carga', val: chargingKw, unit: 'kW', color: isCharging ? 'text-green-400' : 'text-white/20' }
+                    { label: 'Cierre Central', val: getVal(config?.vehicle.lock_entity), color: 'text-green-400', icon: '🔒' },
+                    { label: 'Ubicación', val: getVal(config?.vehicle.tracker_entity), color: 'text-blue-400', icon: '📍' },
+                    { label: 'Telemetría', val: isCharging ? 'CARGANDO' : 'NOMINAL', color: isCharging ? 'text-green-400' : 'text-white/20', icon: '⚡' }
                   ].map((d, i) => (
-                    <div key={i} className="flex justify-between items-center border-b border-white/10 pb-3">
-                      <span className="text-[10px] uppercase font-black text-white/40 tracking-widest">{d.label}</span>
-                      <span className={`text-[11px] font-black uppercase ${d.color} truncate max-w-[150px] text-right`}>{d.val} {d.unit}</span>
+                    <div key={i} className="flex justify-between items-center border-b border-white/5 pb-4 group">
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg opacity-40 group-hover:opacity-100 transition-opacity">{d.icon}</span>
+                        <span className="text-[10px] uppercase font-black text-white/40 tracking-widest">{d.label}</span>
+                      </div>
+                      <span className={`text-[11px] font-black uppercase ${d.color} truncate max-w-[120px] text-right drop-shadow-sm italic`}>{d.val}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div>
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-orange-400 italic mb-4">Historial Movimientos</h4>
-                <div className="space-y-2 max-h-[220px] overflow-y-auto no-scrollbar pr-2">
+              <div className="flex-1">
+                <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-orange-400 italic mb-6">Rutas_Recientes</h4>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar pr-2">
                   {history.length > 0 ? history.slice().reverse().filter((h, idx, self) => idx === 0 || h.state !== self[idx-1].state).slice(0, 10).map((h, i) => (
-                    <div key={i} className="flex justify-between items-center p-4 rounded-2xl bg-white/5 border border-white/10">
+                    <div key={i} className="flex justify-between items-center p-4 rounded-[20px] bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-default">
                       <div className="min-w-0">
-                        <p className="text-[11px] font-black text-white uppercase truncate">{h.state}</p>
-                        <p className="text-[9px] font-bold text-white/30 uppercase mt-1">
+                        <p className="text-[10px] font-black text-white uppercase truncate tracking-tight">{h.state}</p>
+                        <p className="text-[8px] font-bold text-white/30 uppercase mt-1 tracking-widest">
                           {new Date(h.last_changed).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
-                      <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500/40 shadow-[0_0_10px_#3b82f6]" />
                     </div>
                   )) : (
-                    <p className="text-[9px] text-white/20 uppercase italic text-center py-4 tracking-widest">Sin registros recientes</p>
+                    <p className="text-[9px] text-white/20 uppercase italic text-center py-10 tracking-[0.3em]">Cargando logs de ruta...</p>
                   )}
                 </div>
               </div>
@@ -220,9 +263,9 @@ const VehicleView: React.FC = () => {
             <button 
               onClick={handleCloudSync} 
               disabled={isSyncing}
-              className={`w-full py-6 rounded-[25px] text-[11px] font-black uppercase tracking-[0.4em] shadow-xl text-white transition-all active:scale-95 ${isSyncing ? 'bg-blue-900 opacity-50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'}`}
+              className={`w-full py-6 rounded-[30px] text-[12px] font-black uppercase tracking-[0.5em] shadow-2xl text-white transition-all active:scale-95 border-b-4 ${isSyncing ? 'bg-blue-900 border-blue-950 opacity-50 cursor-not-allowed' : 'bg-blue-600 border-blue-800 hover:bg-blue-500 shadow-blue-500/30'}`}
             >
-              {isSyncing ? 'EJECUTANDO_PROTOCOLOS...' : 'SINC_CLOUD_MASTER'}
+              {isSyncing ? 'SINC_EN_CURSO...' : 'FORZAR_TELEMETRÍA_EXT'}
             </button>
           </div>
         </div>
