@@ -79,16 +79,16 @@ const WeatherView: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-5 h-full pb-8">
+    <div className="flex flex-col gap-4 h-full">
        
-       {/* Selector de Nodos - Sticky para acceso rápido */}
-       <div className="glass rounded-[25px] p-1.5 border border-white/10 shrink-0 sticky top-0 z-50 backdrop-blur-3xl shadow-2xl">
+       {/* Selector de Nodos - Estilo Cristalizado */}
+       <div className="glass rounded-[25px] p-1.5 border border-white/10 shrink-0 sticky top-0 z-40 backdrop-blur-3xl">
           <div className="flex gap-1 overflow-x-auto no-scrollbar py-0.5 px-0.5">
              {['Torrejón', 'Navalacruz', 'Santibáñez'].map((loc, idx) => (
                 <button 
                   key={idx} 
                   onClick={() => setActiveIdx(idx)} 
-                  className={`whitespace-nowrap text-[10px] px-5 py-3 rounded-2xl border font-black uppercase tracking-widest transition-all flex-1 ${activeIdx === idx ? 'bg-orange-600 border-orange-400 text-white' : 'bg-white/5 border-transparent text-white/30'}`}
+                  className={`whitespace-nowrap text-[10px] px-5 py-3 rounded-2xl border font-black uppercase tracking-widest transition-all flex-1 ${activeIdx === idx ? 'bg-orange-600 border-orange-400 text-white shadow-lg' : 'bg-white/5 border-transparent text-white/30 hover:bg-white/10'}`}
                 >
                   {loc}
                 </button>
@@ -99,17 +99,17 @@ const WeatherView: React.FC = () => {
           </div>
        </div>
 
-       {/* Widget Clima Principal */}
-       <div className="flex flex-col gap-5 lg:grid lg:grid-cols-2">
+       {/* Widget Clima Principal - Grid Adaptativo */}
+       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 flex-1 min-h-0">
           
-          <div className="flex flex-col gap-5">
-             {/* Info Actual - Estilo HUD */}
-             <div className="glass rounded-[35px] border border-white/10 bg-black/40 p-6 flex items-center justify-between shadow-2xl overflow-hidden relative group">
+          <div className="flex flex-col gap-4 shrink-0 lg:shrink">
+             {/* Info Actual HUD */}
+             <div className="glass rounded-[35px] border border-white/10 bg-black/50 p-6 flex items-center justify-between shadow-2xl overflow-hidden relative group">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 blur-3xl -z-10 animate-pulse" />
                 <div className="flex flex-col">
-                   <p className="text-[10px] font-black text-orange-400 uppercase tracking-[0.4em] mb-2">TELEMETRY_LIVE</p>
-                   <div className="flex items-center gap-5">
-                      <h3 className="text-7xl font-black text-white italic font-orbitron leading-none tracking-tighter">
+                   <p className="text-[10px] font-black text-orange-400 uppercase tracking-[0.4em] mb-1">TELEMETRY_LIVE</p>
+                   <div className="flex items-center gap-4">
+                      <h3 className="text-6xl md:text-7xl font-black text-white italic font-orbitron leading-none tracking-tighter">
                         {currentTemp}°
                       </h3>
                       <div className="flex flex-col border-l border-white/10 pl-4">
@@ -125,19 +125,15 @@ const WeatherView: React.FC = () => {
                          <span className="text-[7px] text-white/20 font-black uppercase">HUM</span>
                          <span className="text-xs font-black text-white">{haStates.find(s => s.entity_id === nodeConfig?.humidity_entity)?.state || '--'}%</span>
                       </div>
-                      <div className="flex flex-col items-center">
-                         <span className="text-[7px] text-white/20 font-black uppercase">WND</span>
-                         <span className="text-xs font-black text-white">{haStates.find(s => s.entity_id === nodeConfig?.wind_entity)?.state || '--'}</span>
-                      </div>
                    </div>
                 </div>
              </div>
 
-             {/* Cámara / Radar - Tamaño optimizado para móvil */}
-             <div className="glass rounded-[35px] overflow-hidden border border-white/10 relative bg-black shadow-2xl h-[240px] md:h-[400px]">
+             {/* Cámara / Radar */}
+             <div className="glass rounded-[35px] overflow-hidden border border-white/10 relative bg-black shadow-2xl h-[220px] lg:flex-1">
                 <div className="absolute top-4 left-6 z-10 flex items-center gap-2 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full border border-white/10">
                    <div className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
-                   <span className="text-[8px] font-black text-white uppercase tracking-widest">SENTINEL_STREAM</span>
+                   <span className="text-[8px] font-black text-white uppercase tracking-widest">SENTINEL_LIVE</span>
                 </div>
                 {showRadar ? (
                   <iframe 
@@ -148,49 +144,47 @@ const WeatherView: React.FC = () => {
                   <div className="w-full h-full relative">
                     <img 
                       src={`${activeWeatherMock.webcamUrl || 'https://via.placeholder.com/800x450/020617/ffffff?text=OFFLINE'}${Date.now()}`} 
-                      className="w-full h-full object-cover opacity-90 transition-opacity duration-1000" 
+                      className="w-full h-full object-cover opacity-100 transition-opacity duration-1000" 
                       alt="Webcam" 
-                      onLoad={(e) => (e.currentTarget.style.opacity = '1')}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                   </div>
                 )}
              </div>
           </div>
 
-          {/* Previsión - Listado vertical adaptativo */}
-          <div className="glass rounded-[35px] border border-white/10 bg-black/40 flex flex-col shadow-2xl overflow-hidden min-h-0">
-             <div className="px-6 py-5 border-b border-white/5 bg-white/5 flex justify-between items-center">
-                <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40">LONG_RANGE_FORECAST</h4>
+          {/* Previsión 10 Días */}
+          <div className="glass rounded-[35px] border border-white/10 bg-black/60 flex flex-col shadow-2xl overflow-hidden min-h-[300px]">
+             <div className="px-6 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40">LONG_RANGE_MATRIX</h4>
                 <div className="flex gap-1">
                    <div className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
-                   <div className="w-1 h-1 rounded-full bg-blue-500/50" />
                 </div>
              </div>
              
-             <div className="flex-1 p-3 space-y-1.5 overflow-y-auto no-scrollbar max-h-[500px]">
+             <div className="flex-1 p-3 space-y-1 overflow-y-auto no-scrollbar">
                 {forecast.length > 0 ? forecast.map((f: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between px-5 py-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group">
+                  <div key={i} className="flex items-center justify-between px-5 py-3 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/10 transition-all group">
                      <div className="flex flex-col min-w-[70px]">
                         <span className="text-[11px] font-black text-white uppercase">{f.day}</span>
                         <span className={`text-[8px] font-bold ${f.pop > 30 ? 'text-blue-400' : 'text-white/20'}`}>{f.pop}% POP</span>
                      </div>
-                     <WeatherIcon condition={f.cond} className="w-7 h-7 md:w-8 md:h-8" />
-                     <div className="flex items-center gap-5">
+                     <WeatherIcon condition={f.cond} className="w-7 h-7" />
+                     <div className="flex items-center gap-4">
                         <div className="flex flex-col items-end">
-                           <span className="text-base md:text-xl font-black text-white font-orbitron">{f.max}°</span>
+                           <span className="text-lg font-black text-white font-orbitron">{f.max}°</span>
                            <span className="text-[7px] text-white/20 uppercase font-black">MAX</span>
                         </div>
                         <div className="flex flex-col items-end opacity-40">
-                           <span className="text-sm md:text-lg font-black text-blue-300 font-orbitron">{f.min}°</span>
+                           <span className="text-sm font-black text-blue-300 font-orbitron">{f.min}°</span>
                            <span className="text-[7px] text-blue-300/40 uppercase font-black">MIN</span>
                         </div>
                      </div>
                   </div>
                 )) : (
-                  <div className="flex flex-col items-center justify-center py-10 opacity-20">
+                  <div className="flex flex-col items-center justify-center py-20 opacity-20">
                      <div className="w-6 h-6 border-2 border-white/10 border-t-white rounded-full animate-spin mb-3" />
-                     <p className="text-[8px] uppercase font-black">Syncing Matrix...</p>
+                     <p className="text-[8px] uppercase font-black">Establishing Matrix...</p>
                   </div>
                 )}
              </div>
