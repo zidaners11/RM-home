@@ -11,7 +11,6 @@ const formatKm = (val: any) => {
   return new Intl.NumberFormat('es-ES').format(Math.floor(n));
 };
 
-// Nueva función para formatear litros con 2 decimales
 const formatFuel = (val: any) => {
   const n = parseFloat(val);
   if (isNaN(n)) return val;
@@ -130,25 +129,33 @@ const VehicleView: React.FC = () => {
   return (
     <div className="flex flex-col gap-6 pb-32 h-full overflow-y-auto no-scrollbar px-1">
       
-      {/* HERO SECTION: IMAGE WITH INTEGRATED EXTRA KPIS */}
       <div className="relative glass rounded-[40px] overflow-hidden border border-white/10 h-[450px] md:h-[550px] bg-black/40 shadow-2xl group shrink-0">
         <img src={config?.vehicle.image_url} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[4s]" alt="Vehículo" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-black/20" />
         
-        {/* TITULAR VEHÍCULO */}
         <div className="absolute top-8 left-8 z-20">
           <h2 className="text-3xl md:text-5xl font-black text-white italic tracking-tighter uppercase leading-none font-orbitron" style={{ fontFamily: 'Orbitron, sans-serif' }}>LYNK & CO <span className="text-blue-500">01</span></h2>
           <p className="text-[8px] font-black text-white/40 uppercase tracking-[0.5em] mt-2">Telemetry_System // Master_Core</p>
         </div>
 
-        {/* PANEL FLOTANTE DE EXTRAS (DENTRO DE LA IMAGEN) */}
-        <div className="absolute top-8 right-8 bottom-32 w-full max-w-[280px] md:max-w-[420px] z-30 flex flex-col pointer-events-none">
+        {/* BOTÓN DE ACTUALIZACIÓN INTEGRADO EN LA IMAGEN */}
+        <button 
+          onClick={handleCloudSync}
+          disabled={isSyncing}
+          className={`absolute bottom-32 right-8 z-40 px-6 py-4 rounded-2xl font-black text-[9px] uppercase tracking-[0.3em] backdrop-blur-3xl border transition-all active:scale-90 shadow-2xl flex items-center gap-3 ${isSyncing ? 'bg-white/5 border-white/10 text-white/20' : 'bg-blue-600/80 border-blue-400 text-white hover:bg-blue-500 shadow-blue-500/20'}`}
+        >
+          <svg className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {isSyncing ? 'SINC_EN_CURSO' : 'ACTUALIZAR_VEHÍCULO'}
+        </button>
+
+        <div className="absolute top-8 right-8 bottom-48 w-full max-w-[280px] md:max-w-[420px] z-30 flex flex-col pointer-events-none">
            <div className="pointer-events-auto glass-dark border border-white/10 bg-black/60 rounded-[35px] flex-1 overflow-hidden flex flex-col backdrop-blur-3xl shadow-2xl">
               <div className="p-5 border-b border-white/5 flex justify-between items-center bg-white/5">
                  <span className="text-[9px] font-black uppercase text-blue-400 tracking-[0.3em]">Módulos_Extra</span>
                  <div className="flex gap-1">
                     <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" />
-                    <div className="w-1 h-1 bg-blue-500/40 rounded-full" />
                  </div>
               </div>
               <div className="flex-1 overflow-y-auto no-scrollbar p-3">
@@ -173,13 +180,9 @@ const VehicleView: React.FC = () => {
                     })}
                  </div>
               </div>
-              <div className="p-3 bg-white/5 border-t border-white/5 text-center">
-                 <p className="text-[7px] font-mono text-white/20 uppercase tracking-widest animate-pulse">Deslizar para más telemetría</p>
-              </div>
            </div>
         </div>
 
-        {/* INDICADOR CARGA */}
         {isCharging && (
           <div className="absolute top-32 left-8 glass px-4 py-2 rounded-xl border border-green-500/30 bg-green-500/10 flex items-center gap-3 backdrop-blur-xl z-20">
              <div className="w-2 h-2 rounded-full bg-green-500 animate-ping shadow-[0_0_10px_green]" />
@@ -187,7 +190,6 @@ const VehicleView: React.FC = () => {
           </div>
         )}
 
-        {/* KPIs PRINCIPALES (PIE DE IMAGEN) */}
         <div className="absolute bottom-8 left-8 right-8 grid grid-cols-2 md:grid-cols-4 gap-6 z-20">
           <div className="space-y-1">
             <p className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">Energía</p>
@@ -210,24 +212,18 @@ const VehicleView: React.FC = () => {
         </div>
       </div>
 
-      {/* BOTTOM SECTION: MAP + INFO SIDEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto">
-        {/* MAP AREA */}
         <div className="lg:col-span-2 glass rounded-[40px] border border-white/10 h-[450px] md:h-[600px] overflow-hidden relative bg-black shadow-2xl">
            <div ref={mapContainerRef} className="w-full h-full z-0 opacity-80" />
            <div className="absolute top-6 left-6 glass-dark px-5 py-3 rounded-2xl text-[10px] font-black uppercase text-blue-400 tracking-[0.4em] z-[1000] border border-blue-500/20 bg-black/90 shadow-2xl flex items-center gap-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(59,130,246,1)]" />
               Sentinel_GPS_Bridge // LIVE_TRACK
            </div>
-           <div className="absolute bottom-6 right-6 z-[1000] glass-dark px-4 py-2 rounded-xl text-[8px] font-mono text-white/20 bg-black/80 border border-white/5 italic">
-              MK_V4_SECURED_CONNECTION
-           </div>
         </div>
 
-        {/* SIDEBAR INFO */}
         <div className="flex flex-col gap-6">
           <div className="glass rounded-[40px] p-8 border border-white/10 bg-black/40 flex flex-col gap-8 h-full shadow-2xl">
-            <div className="space-y-8">
+            <div className="space-y-8 flex-1">
               <div>
                 <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-blue-400 italic mb-6">Estado_Red_Sentinel</h4>
                 <div className="space-y-5">
@@ -247,10 +243,10 @@ const VehicleView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex-1">
+              <div>
                 <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-orange-400 italic mb-6">Rutas_Recientes</h4>
-                <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar pr-2">
-                  {history.length > 0 ? history.slice().reverse().filter((h, idx, self) => idx === 0 || h.state !== self[idx-1].state).slice(0, 10).map((h, i) => (
+                <div className="space-y-3 max-h-[350px] overflow-y-auto no-scrollbar pr-2">
+                  {history.length > 0 ? history.slice().reverse().filter((h, idx, self) => idx === 0 || h.state !== self[idx-1].state).slice(0, 8).map((h, i) => (
                     <div key={i} className="flex justify-between items-center p-4 rounded-[20px] bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-default">
                       <div className="min-w-0">
                         <p className="text-[10px] font-black text-white uppercase truncate tracking-tight">{h.state}</p>
@@ -266,14 +262,7 @@ const VehicleView: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            <button 
-              onClick={handleCloudSync} 
-              disabled={isSyncing}
-              className={`w-full py-6 rounded-[30px] text-[12px] font-black uppercase tracking-[0.5em] shadow-2xl text-white transition-all active:scale-95 border-b-4 ${isSyncing ? 'bg-blue-900 border-blue-950 opacity-50 cursor-not-allowed' : 'bg-blue-600 border-blue-800 hover:bg-blue-500 shadow-blue-500/30'}`}
-            >
-              {isSyncing ? 'SINC_EN_CURSO...' : 'FORZAR_TELEMETRÍA_EXT'}
-            </button>
+            {/* El botón ya no está aquí, está arriba en la imagen */}
           </div>
         </div>
       </div>
