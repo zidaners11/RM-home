@@ -11,6 +11,13 @@ const formatKm = (val: any) => {
   return new Intl.NumberFormat('es-ES').format(Math.floor(n));
 };
 
+// Nueva función para formatear litros con 2 decimales
+const formatFuel = (val: any) => {
+  const n = parseFloat(val);
+  if (isNaN(n)) return val;
+  return n.toFixed(2);
+};
+
 const VehicleView: React.FC = () => {
   const [states, setStates] = useState<any[]>([]);
   const [config, setConfig] = useState<HomeAssistantConfig | null>(null);
@@ -192,7 +199,7 @@ const VehicleView: React.FC = () => {
           <div className="space-y-1">
             <p className="text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">Fuel</p>
             <div className="flex items-baseline gap-2">
-              <p className="text-3xl md:text-5xl font-black text-yellow-500 italic font-orbitron" style={{ fontFamily: 'Orbitron, sans-serif' }}>{getVal(config?.vehicle.fuel_entity)}L</p>
+              <p className="text-3xl md:text-5xl font-black text-yellow-500 italic font-orbitron" style={{ fontFamily: 'Orbitron, sans-serif' }}>{formatFuel(getVal(config?.vehicle.fuel_entity))}L</p>
               <p className="text-[10px] md:text-sm font-black text-yellow-500/60 italic">{getVal(config?.vehicle.fuel_range_entity)}km</p>
             </div>
           </div>

@@ -95,14 +95,14 @@ const App: React.FC = () => {
 
   if (syncState === 'syncing') {
     return (
-      <div className="h-screen w-screen bg-[#020617] flex flex-col items-center justify-center" 
-           style={{ backgroundImage: `url('${bgUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-         <div className="absolute inset-0 bg-black/90 backdrop-blur-3xl" />
+      <div className="h-screen w-screen bg-[#020617] flex flex-col items-center justify-center relative overflow-hidden">
+         <div className="absolute inset-0 bg-cover bg-center opacity-30 blur-xl" style={{ backgroundImage: `url('${bgUrl}')` }} />
+         <div className="absolute inset-0 bg-black/80 backdrop-blur-3xl" />
          <div className="relative text-center">
-            <div className="w-20 h-20 border-2 border-blue-500/10 rounded-full mx-auto" />
+            <div className="w-24 h-24 border-2 border-blue-500/10 rounded-full mx-auto" />
             <div className="absolute inset-0 border-t-2 border-blue-500 rounded-full animate-spin shadow-[0_0_50px_rgba(59,130,246,0.3)]" />
             <div className="mt-12 space-y-4 px-6">
-               <h3 className="text-blue-400 font-black text-[10px] uppercase tracking-[0.5em] animate-pulse">Sincronizando RM Home Core</h3>
+               <h3 className="text-blue-400 font-black text-[10px] uppercase tracking-[0.5em] animate-pulse">Sincronizando Nexus Hub</h3>
             </div>
          </div>
       </div>
@@ -111,13 +111,9 @@ const App: React.FC = () => {
 
   return (
     <div 
-      className="flex flex-col md:flex-row h-screen w-screen overflow-hidden text-white relative transition-all duration-1000"
+      className="flex flex-col md:flex-row h-screen w-screen overflow-hidden text-white relative transition-all duration-1000 bg-cover bg-center bg-fixed bg-no-repeat"
       style={{ 
-        backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.7), rgba(2, 6, 23, 0.9)), url('${bgUrl}')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed'
+        backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.6), rgba(2, 6, 23, 0.85)), url('${bgUrl}')`
       }}
     >
       <Sidebar 
@@ -127,14 +123,14 @@ const App: React.FC = () => {
         onForceSync={() => startupSequence(user)} 
       />
       
-      <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden mobile-safe-top">
-        <header className="flex justify-between items-center mb-4 md:mb-8 px-6 md:px-8 py-4 shrink-0">
+      <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden mobile-safe-top mobile-safe-bottom">
+        <header className="flex justify-between items-center px-6 md:px-8 py-4 md:py-8 shrink-0">
           <div className="min-w-0">
-            <h1 className="text-xl md:text-3xl font-light tracking-tight text-white/90 truncate">
-              RM <span className="font-bold text-blue-400">Home</span> Hub
+            <h1 className="text-xl md:text-3xl font-light tracking-tighter text-white/90 truncate">
+              NEXUS <span className="font-bold text-blue-400">HUB</span>
             </h1>
-            <p className="text-white/20 text-[8px] md:text-[9px] uppercase tracking-[0.3em] font-black truncate">
-               {user} // {syncState === 'error' ? 'Offline Cache' : 'Core Sync'}
+            <p className="text-white/20 text-[8px] md:text-[9px] uppercase tracking-[0.5em] font-black truncate mt-1">
+               {user} // OS_STABLE
             </p>
           </div>
           <button onClick={() => setShowAI(!showAI)} className="p-3 glass rounded-full border border-blue-400/20 active:scale-90 transition-all">

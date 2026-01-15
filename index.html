@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Nexus Home Hub</title>
     <script>
         window.NEXUS_CONFIG = window.NEXUS_CONFIG || {};
@@ -23,7 +25,7 @@
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
-            overflow-x: hidden;
+            overflow: hidden;
             background-color: #020617;
             background-image: url('https://i.redd.it/6qq8lk9qjqp21.jpg');
             background-size: cover;
@@ -31,22 +33,24 @@
             background-attachment: fixed;
             color: white;
             -webkit-tap-highlight-color: transparent;
+            height: 100vh;
+            width: 100vw;
         }
 
         #root {
-            min-height: 100vh;
-            width: 100vw;
+            height: 100%;
+            width: 100%;
             background: radial-gradient(circle at 50% 50%, rgba(2, 6, 23, 0.4) 0%, rgba(2, 6, 23, 0.8) 100%);
-            padding-top: var(--sat);
-            padding-bottom: var(--sab);
+            display: flex;
+            flex-direction: column;
         }
 
         .glass {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(25px) saturate(200%);
+            -webkit-backdrop-filter: blur(25px) saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
         }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -57,18 +61,22 @@
             letter-spacing: 0.05em;
         }
 
-        /* FIX: Asegurar que los desplegables de configuración floten sobre todo */
-        .nexus-dropdown-portal {
-            z-index: 99999 !important;
+        /* Safe area optimizations for iPhone 15 Pro */
+        .mobile-safe-top {
+            padding-top: var(--sat);
+        }
+        .mobile-safe-bottom {
+            padding-bottom: var(--sab);
+        }
+        .mobile-safe-left {
+            padding-left: var(--sal);
+        }
+        .mobile-safe-right {
+            padding-right: var(--sar);
         }
 
         @media (max-width: 430px) {
-            .main-content {
-                padding-top: calc(var(--sat) + 10px);
-                padding-bottom: calc(var(--sab) + 90px);
-            }
-            .glass { border-radius: 30px !important; }
-            h1 { font-size: 1.4rem !important; }
+            .glass { border-radius: 35px !important; }
         }
     </style>
 <script type="importmap">
