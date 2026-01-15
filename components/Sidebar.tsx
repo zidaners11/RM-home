@@ -44,12 +44,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange, onLog
         </button>
       </nav>
       
-      {/* Mobile Tab Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[85px] bg-black/80 backdrop-blur-3xl border-t border-white/10 z-[100] flex items-start justify-around px-2 pt-3 pb-[var(--sab)] shadow-[0_-10px_40px_rgba(0,0,0,0.8)] overflow-x-auto no-scrollbar">
+      {/* Mobile Tab Bar optimizada para iPhone 15 Pro (Dynamic Island / SafeArea) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(65px+var(--sab))] bg-black/80 backdrop-blur-3xl border-t border-white/10 z-[100] flex items-start justify-around px-2 pt-2 pb-[var(--sab)] shadow-[0_-10px_40px_rgba(0,0,0,0.8)] overflow-x-auto no-scrollbar">
         {menuItems.map((item) => (
-          <button key={item.id} onClick={() => onSectionChange(item.id)} className={`flex flex-col items-center justify-center min-w-[60px] h-12 gap-1 transition-all ${activeSection === item.id ? 'text-blue-400 scale-110' : 'text-white/30'}`}>
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
-            <span className="text-[7px] font-black uppercase tracking-tighter">{item.label}</span>
+          <button key={item.id} onClick={() => onSectionChange(item.id)} className={`flex flex-col items-center justify-center min-w-[55px] h-12 gap-0.5 transition-all ${activeSection === item.id ? 'text-blue-400 scale-105' : 'text-white/30'}`}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
+            <span className="text-[6px] font-black uppercase tracking-tighter">{item.label}</span>
           </button>
         ))}
       </nav>

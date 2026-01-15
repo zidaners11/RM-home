@@ -111,7 +111,7 @@ const App: React.FC = () => {
 
   return (
     <div 
-      className="flex flex-col md:flex-row h-screen w-screen overflow-hidden text-white relative transition-all duration-1000 bg-cover bg-center bg-fixed bg-no-repeat"
+      className="flex flex-col md:flex-row h-[100dvh] w-screen overflow-hidden text-white relative transition-all duration-1000 bg-cover bg-center bg-fixed bg-no-repeat"
       style={{ 
         backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.6), rgba(2, 6, 23, 0.85)), url('${bgUrl}')`
       }}
@@ -123,8 +123,9 @@ const App: React.FC = () => {
         onForceSync={() => startupSequence(user)} 
       />
       
-      <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden mobile-safe-top mobile-safe-bottom">
-        <header className="flex justify-between items-center px-6 md:px-8 py-4 md:py-8 shrink-0">
+      <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden">
+        {/* Header con padding superior para área segura (iPhone 15 / Dynamic Island) */}
+        <header className="flex justify-between items-center px-6 md:px-8 pb-4 pt-[calc(var(--sat)+1rem)] md:py-8 shrink-0">
           <div className="min-w-0">
             <h1 className="text-xl md:text-3xl font-light tracking-tighter text-white/90 truncate">
               NEXUS <span className="font-bold text-blue-400">HUB</span>
@@ -138,7 +139,8 @@ const App: React.FC = () => {
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-8 pb-32 md:pb-8">
+        {/* El contenido principal ya no tiene mobile-safe-top porque el header lo gestiona */}
+        <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-8 pb-[calc(var(--sab)+100px)] md:pb-8">
            {activeSection === AppSection.DASHBOARD && <Dashboard key="dash" />}
            {activeSection === AppSection.ENERGY && <EnergyView key="energy" />}
            {activeSection === AppSection.VEHICLE && <VehicleView key="vehicle" />}
