@@ -36,10 +36,8 @@ const App: React.FC = () => {
 
   const startupSequence = useCallback(async (username: string) => {
     setSyncState('syncing');
-    
     let haUrl = DEFAULT_HA_URL;
     let haToken = DEFAULT_HA_TOKEN;
-    
     const savedConfigRaw = localStorage.getItem('nexus_ha_config');
     if (savedConfigRaw) {
       try {
@@ -48,10 +46,8 @@ const App: React.FC = () => {
         if (parsed.token) haToken = parsed.token;
       } catch (e) {}
     }
-
     try {
       const config = await fetchMasterConfig(username, haUrl, haToken);
-      
       if (config) {
         applyConfig(config);
         setSyncState('success');
@@ -68,7 +64,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const session = localStorage.getItem('nexus_session_active');
     const storedUser = localStorage.getItem('nexus_user');
-    
     if (session === 'true' && storedUser) {
       setUser(storedUser);
       startupSequence(storedUser);
@@ -78,7 +73,6 @@ const App: React.FC = () => {
   const handleLogin = (username: string) => {
     const formalName = username.trim().toLowerCase() === 'juanmi' ? 'Juanmi' : 
                        username.trim().toLowerCase() === 'noemi' ? 'Noemi' : username;
-    
     localStorage.setItem('nexus_session_active', 'true');
     localStorage.setItem('nexus_user', formalName);
     setUser(formalName);
@@ -113,7 +107,7 @@ const App: React.FC = () => {
     <div 
       className="flex flex-col md:flex-row h-[100dvh] w-screen overflow-hidden text-white relative transition-all duration-1000 bg-cover bg-center bg-fixed bg-no-repeat"
       style={{ 
-        backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.4), rgba(2, 6, 23, 0.8)), url('${bgUrl}')`
+        backgroundImage: `url('${bgUrl}')`
       }}
     >
       <Sidebar 
@@ -123,9 +117,9 @@ const App: React.FC = () => {
         onForceSync={() => startupSequence(user)} 
       />
       
-      <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden">
-        {/* Header optimizado para Dynamic Island */}
-        <header className="flex justify-between items-center px-6 md:px-8 pb-2 pt-[calc(var(--sat)+10px)] md:py-8 shrink-0">
+      <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden bg-black/10 backdrop-blur-[2px]">
+        {/* Header totalmente transparente y pegado arriba (Dynamic Island integration) */}
+        <header className="flex justify-between items-center px-6 md:px-8 pb-4 pt-3 md:pt-8 shrink-0">
           <div className="min-w-0">
             <h1 className="text-xl md:text-3xl font-light tracking-tighter text-white/90 truncate">
               NEXUS <span className="font-bold text-blue-400">HUB</span>
@@ -134,13 +128,13 @@ const App: React.FC = () => {
                {user} // OS_STABLE
             </p>
           </div>
-          <button onClick={() => setShowAI(!showAI)} className="p-2.5 glass rounded-full border border-blue-400/20 active:scale-90 transition-all">
+          <button onClick={() => setShowAI(!showAI)} className="p-2.5 glass rounded-full border border-blue-400/20 active:scale-90 transition-all bg-white/5">
              <div className={`w-1.5 h-1.5 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-white/40'}`} />
           </button>
         </header>
 
-        {/* Scroll principal con padding inferior optimizado para iPhone 15 */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-8 pb-[calc(var(--sab)+80px)] md:pb-8">
+        {/* Contenedor de scroll que sube hasta arriba y baja hasta el final */}
+        <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-8 pb-[calc(65px+env(safe-area-inset-bottom)+20px)] md:pb-8">
            {activeSection === AppSection.DASHBOARD && <Dashboard key="dash" />}
            {activeSection === AppSection.ENERGY && <EnergyView key="energy" />}
            {activeSection === AppSection.VEHICLE && <VehicleView key="vehicle" />}
