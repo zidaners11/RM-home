@@ -106,8 +106,8 @@ const App: React.FC = () => {
       className="flex flex-col md:flex-row h-[100dvh] w-screen overflow-hidden text-white relative transition-all duration-1000 bg-cover bg-center bg-fixed bg-no-repeat"
       style={{ backgroundImage: `url('${bgUrl}')` }}
     >
-      {/* Capa de profundidad superior para la Dynamic Island */}
-      <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-black/60 to-transparent pointer-events-none z-20" />
+      {/* Capa de oscuridad superior reforzada para visibilidad de Dynamic Island */}
+      <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none z-20" />
 
       <Sidebar 
         activeSection={activeSection} 
@@ -117,22 +117,22 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden">
-        {/* Header - Posicionado estratégicamente para la Island */}
+        {/* Header - Con sombras más fuertes para el fondo claro */}
         <header className="flex justify-between items-end px-6 md:px-8 pb-4 pt-[env(safe-area-inset-top)] shrink-0 z-30">
           <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] leading-none">
+            <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white drop-shadow-[0_4px_15px_rgba(0,0,0,1)] leading-none">
               NEXUS <span className="text-blue-400">HUB</span>
             </h1>
-            <p className="text-white/40 text-[7px] md:text-[9px] uppercase tracking-[0.6em] font-black truncate mt-1 bg-black/30 backdrop-blur-md inline-block px-2 py-0.5 rounded-full border border-white/5">
+            <p className="text-white/80 text-[7px] md:text-[9px] uppercase tracking-[0.6em] font-black truncate mt-1.5 bg-black/60 backdrop-blur-md inline-block px-3 py-1 rounded-full border border-white/10 shadow-lg">
                {user} // OS_STABLE
             </p>
           </div>
-          <button onClick={() => setShowAI(!showAI)} className="p-2.5 bg-blue-600/20 backdrop-blur-2xl rounded-full border border-blue-500/30 active:scale-90 transition-all shadow-xl">
-             <div className={`w-2 h-2 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-blue-400'}`} />
+          <button onClick={() => setShowAI(!showAI)} className="p-3 bg-blue-600/40 backdrop-blur-2xl rounded-full border border-blue-500/50 active:scale-90 transition-all shadow-2xl">
+             <div className={`w-2.5 h-2.5 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-blue-400'}`} />
           </button>
         </header>
 
-        {/* Content Area - Con capas de color sutiles integradas */}
+        {/* Content Area - Capas de cristal más oscuras */}
         <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-8 pb-[calc(env(safe-area-inset-bottom)+85px)] md:pb-8 pt-2">
            {activeSection === AppSection.DASHBOARD && <Dashboard key="dash" />}
            {activeSection === AppSection.ENERGY && <EnergyView key="energy" />}

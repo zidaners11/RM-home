@@ -106,23 +106,23 @@ const Dashboard: React.FC = () => {
         <button 
           key={widget.id} 
           onClick={() => handleCommand(widget.entity_id)} 
-          className={`glass p-6 rounded-[35px] border-2 flex flex-col justify-between h-[140px] md:h-[180px] shadow-2xl active:scale-90 transition-all text-left group overflow-hidden ${colSpanClass} hover:bg-white/5`}
-          style={{ borderColor: `${accentColor}44`, boxShadow: `0 10px 40px -10px ${accentColor}33` }}
+          className={`glass p-6 rounded-[35px] border-2 flex flex-col justify-between h-[140px] md:h-[180px] shadow-2xl active:scale-90 transition-all text-left group overflow-hidden ${colSpanClass} hover:bg-white/10`}
+          style={{ borderColor: `${accentColor}66`, boxShadow: `0 15px 45px -10px ${accentColor}44` }}
         >
            <div className="flex justify-between items-start w-full relative z-10">
               <div className="flex flex-col min-w-0">
-                <p className="text-[12px] md:text-lg font-black text-white uppercase truncate tracking-tight">{friendlyName}</p>
-                {isShell && <span className="text-[8px] font-black text-orange-400 mt-1">SYS_CORE_CMD</span>}
+                <p className="text-[12px] md:text-lg font-black text-white uppercase truncate tracking-tight drop-shadow-[0_2px_8px_rgba(0,0,0,1)]">{friendlyName}</p>
+                {isShell && <span className="text-[8px] font-black text-orange-400 mt-1 bg-black/40 px-2 py-0.5 rounded-full border border-orange-400/20">SYS_CORE_CMD</span>}
               </div>
               <div className="text-3xl md:text-5xl group-hover:scale-125 transition-transform duration-500 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">
                  {customIcon}
               </div>
            </div>
            <div className="relative z-10 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
-              <p className="text-[9px] font-black uppercase text-white/30 tracking-widest italic">Ejecutar</p>
+              <div className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor, boxShadow: `0 0 10px ${accentColor}` }} />
+              <p className="text-[9px] font-black uppercase text-white/80 tracking-widest italic drop-shadow-md">Ejecutar Protocolo</p>
            </div>
-           <div className="absolute -right-4 -bottom-4 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+           <div className="absolute -right-4 -bottom-4 opacity-10 pointer-events-none group-hover:opacity-20 transition-opacity">
               <span className="text-8xl">{customIcon}</span>
            </div>
         </button>
@@ -133,24 +133,24 @@ const Dashboard: React.FC = () => {
     return (
       <div 
         key={widget.id} 
-        className={`glass p-6 rounded-[35px] border-2 flex flex-col justify-between shadow-2xl relative overflow-hidden bg-black/40 group hover:border-white/30 transition-all ${widget.colSpan === 0.25 ? 'h-[120px] md:h-[140px]' : 'h-[140px] md:h-[200px]'} ${colSpanClass}`} 
-        style={{ borderColor: `${accentColor}33`, boxShadow: `0 10px 40px -10px ${accentColor}22` }}
+        className={`glass p-6 rounded-[35px] border-2 flex flex-col justify-between shadow-2xl relative overflow-hidden group hover:border-white/30 transition-all ${widget.colSpan === 0.25 ? 'h-[120px] md:h-[140px]' : 'h-[140px] md:h-[200px]'} ${colSpanClass}`} 
+        style={{ borderColor: `${accentColor}55`, boxShadow: `0 15px 45px -10px ${accentColor}33` }}
       >
          <div className="flex flex-col h-full justify-between relative z-10">
             <div className="flex justify-between items-start">
-              <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-white/40 group-hover:text-white transition-colors">{friendlyName}</p>
-              <span className="text-2xl md:text-4xl group-hover:scale-110 transition-transform">{customIcon}</span>
+              <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-white/80 group-hover:text-white transition-colors drop-shadow-[0_2px_4px_rgba(0,0,0,1)]">{friendlyName}</p>
+              <span className="text-2xl md:text-4xl group-hover:scale-110 transition-transform drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">{customIcon}</span>
             </div>
             
             <div className="mt-auto">
-               <h4 className={`${widget.colSpan === 0.25 ? 'text-2xl' : 'text-3xl md:text-5xl'} font-black text-white italic tracking-tighter truncate leading-none`}>
+               <h4 className={`${widget.colSpan === 0.25 ? 'text-2xl' : 'text-3xl md:text-5xl'} font-black text-white italic tracking-tighter truncate leading-none drop-shadow-[0_6px_16px_rgba(0,0,0,1)]`}>
                   {friendlyName.toLowerCase().includes('km') ? formatKm(val) : val}
-                  {unit && <span className="text-[10px] md:text-lg ml-1 opacity-40 not-italic uppercase font-bold">{unit}</span>}
+                  {unit && <span className="text-[10px] md:text-lg ml-1 opacity-70 not-italic uppercase font-bold drop-shadow-none">{unit}</span>}
                </h4>
             </div>
          </div>
          {isNumeric && chartPoints.length > 0 && widget.colSpan >= 0.5 && (
-           <div className="absolute bottom-0 left-0 right-0 h-1/2 opacity-10 pointer-events-none group-hover:opacity-30 transition-opacity">
+           <div className="absolute bottom-0 left-0 right-0 h-1/2 opacity-20 pointer-events-none group-hover:opacity-40 transition-opacity">
               <ResponsiveContainer width="100%" height="100%">
                  <AreaChart data={chartPoints}>
                     <Area type="monotone" dataKey="v" stroke={accentColor} fill={accentColor} strokeWidth={3} isAnimationActive={false} />
@@ -164,10 +164,10 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 md:gap-8 h-full pb-10">
-      <div className="glass rounded-[35px] md:rounded-[50px] p-6 md:p-8 border border-blue-500/10 relative overflow-hidden bg-black/60 shrink-0 shadow-2xl">
+      <div className="glass rounded-[35px] md:rounded-[50px] p-6 md:p-8 border border-blue-500/30 relative overflow-hidden bg-black/85 shrink-0 shadow-2xl">
          <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center">
             <div className="relative shrink-0">
-               <div className="w-14 h-14 md:w-16 md:h-16 bg-blue-600 rounded-[22px] flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.4)]">
+               <div className="w-14 h-14 md:w-16 md:h-16 bg-blue-600 rounded-[22px] flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.6)]">
                   <svg className="w-7 h-7 md:w-8 md:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                </div>
                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-black border-2 border-blue-500 rounded-full flex items-center justify-center">
@@ -176,10 +176,10 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="text-center md:text-left flex-1">
                <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">RM NEXUS STRATEGIC CORE</h2>
-                  <span className="h-px w-12 bg-blue-500/20" />
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic drop-shadow-md">RM NEXUS STRATEGIC CORE</h2>
+                  <span className="h-px w-12 bg-blue-500/40" />
                </div>
-               <div className={`text-xs md:text-[15px] leading-relaxed text-white/80 font-medium ${loadingAI ? 'animate-pulse opacity-40' : ''}`}>
+               <div className={`text-xs md:text-[15px] leading-relaxed text-white font-medium drop-shadow-[0_2px_10px_rgba(0,0,0,1)] ${loadingAI ? 'animate-pulse opacity-40' : ''}`}>
                   {aiReport.text}
                </div>
             </div>

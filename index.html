@@ -21,7 +21,7 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background-color: #020617;
+            background-color: #010409;
             background-image: url('https://i.redd.it/6qq8lk9qjqp21.jpg');
             background-size: cover;
             background-position: center;
@@ -35,18 +35,19 @@
         #root {
             height: 100dvh;
             width: 100%;
-            /* Recuperamos las capas de color sutiles */
-            background: radial-gradient(circle at 50% 0%, rgba(30, 58, 138, 0.15) 0%, rgba(2, 6, 23, 0.85) 100%);
+            /* Oscurecemos más el fondo: pasamos de 0.4/0.8 a 0.6/0.92 para mayor contraste de KPIs */
+            background: linear-gradient(180deg, rgba(2, 6, 23, 0.6) 0%, rgba(2, 6, 23, 0.92) 100%);
             display: flex;
             flex-direction: column;
         }
 
         .glass {
-            background: rgba(15, 23, 42, 0.45);
-            backdrop-filter: blur(25px) saturate(180%);
-            -webkit-backdrop-filter: blur(25px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+            /* Cristal más denso para bloquear la luz del fondo */
+            background: rgba(10, 15, 25, 0.85);
+            backdrop-filter: blur(45px) saturate(200%);
+            -webkit-backdrop-filter: blur(45px) saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 40px 0 rgba(0, 0, 0, 0.7);
         }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -55,10 +56,16 @@
         h1, h2, h3, h4, button {
             font-family: 'Orbitron', sans-serif;
             letter-spacing: 0.05em;
+            /* Refuerzo de legibilidad en fuentes */
+            text-shadow: 0 4px 12px rgba(0,0,0,0.9);
         }
 
         @media (max-width: 430px) {
-            .glass { border-radius: 35px !important; }
+            .glass { 
+                border-radius: 35px !important;
+                background: rgba(0, 0, 0, 0.92); /* Casi opaco en móvil para que los KPIs se vean perfectos */
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
         }
     </style>
 <script type="importmap">
