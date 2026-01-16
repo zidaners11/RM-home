@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { HomeAssistantConfig } from '../types';
 import { fetchFinanceFromSheets } from '../fireflyService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LabelList } from 'recharts';
+import SheetsView from './SheetsView';
 
 interface TransactionData {
   fecha: string; desc: string; monto: string; cat: string; montoNum: number;
@@ -12,10 +13,10 @@ const FinanceView: React.FC = () => {
   const [sheetData, setSheetData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showChart, setShowChart] = useState(false);
+  const [showSheets, setShowSheets] = useState(false);
   const [showCategoriesMobile, setShowCategoriesMobile] = useState(false);
   const [showTransactionsMobile, setShowTransactionsMobile] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  const [sheetLoaded, setSheetLoaded] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -99,92 +100,107 @@ const FinanceView: React.FC = () => {
     };
   }, [sheetData]);
 
-  if (loading) return <div className="h-full flex items-center justify-center animate-pulse text-blue-400 font-black text-[10px]">SYNC_FINANCE_STREAM...</div>;
+  if (loading) return <div className="h-full flex items-center justify-center animate-pulse text-blue-400 font-black text-[10px] uppercase">SINCRONIZACIÓN_FINANCIERA...</div>;
 
   const ahorroPositivo = (processed?.current?.ahorro || 0) > 0;
-  const embedUrl = `https://docs.google.com/spreadsheets/d/1CH7PHgZUrXuNXb6LlNcARf-w7rPrHj-z8UUeF7KOVxM/htmlembed?gid=2034898252&widget=false&chrome=false&headers=false&range=A1:S40`;
 
   return (
-    <div className="flex flex-col gap-4 pb-32 md:pb-12 min-h-full px-1">
-      
-      {/* HEADER - KPIs GIGANTES */}
+    <div className="flex flex-col gap-4 pb-48 md:pb-12 min-h-full px-1">
+      {/* KPI_HEADER_GRID */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-2 shrink-0">
         <div className="col-span-1 grid grid-cols-2 gap-2">
-           <button onClick={() => window.open('https://docs.google.com/spreadsheets/d/1CH7PHgZUrXuNXb6LlNcARf-w7rPrHj-z8UUeF7KOVxM/edit', '_blank')} className="glass flex items-center justify-center p-3 rounded-2xl border border-green-500/20 bg-green-500/5 hover:bg-green-500/10 transition-all">
-              <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeWidth="2.5"/></svg>
+           <button onClick={() => setShowSheets(!showSheets)} className={`glass flex items-center justify-center p-3 rounded-2xl border-2 transition-all shadow-xl ${showSheets ? 'bg-green-600 border-green-400 text-white' : 'border-green-500/40 bg-green-500/10 hover:bg-green-500/20'}`}>
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeWidth="3"/></svg>
            </button>
-           <button onClick={() => window.open('https://firefly.juanmirs.com/login', '_blank')} className="glass flex items-center justify-center p-3 rounded-2xl border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 transition-all">
-              <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2" strokeWidth="2.5"/></svg>
+           <button onClick={() => window.open('https://firefly.juanmirs.com/login', '_blank')} className="glass flex items-center justify-center p-3 rounded-2xl border-2 border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 transition-all shadow-xl">
+              <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2" strokeWidth="3"/></svg>
            </button>
         </div>
 
         {[
-          { label: 'BALANCE', val: processed?.current?.ahorro, unit: '€', color: ahorroPositivo ? 'text-green-400' : 'text-red-400' },
-          { label: 'INGRESOS', val: processed?.current?.ingresos, unit: '€', color: 'text-blue-400' },
-          { label: 'GASTOS', val: processed?.totalRealAccumulated, unit: '€', color: 'text-red-500' },
-          { label: 'SALDO', val: processed?.saldo, unit: '€', color: 'text-purple-400' },
-          { label: 'EFICIENCIA', val: processed?.efficiencyRatio, unit: '%', color: 'text-orange-400' }
+          { label: 'AHORRO_MES', val: processed?.current?.ahorro, unit: '€', color: ahorroPositivo ? 'text-green-400' : 'text-red-400' },
+          { label: 'INGRESOS_MES', val: processed?.current?.ingresos, unit: '€', color: 'text-blue-400' },
+          { label: 'GASTOS_REAL', val: processed?.totalRealAccumulated, unit: '€', color: 'text-red-500' },
+          { label: 'SALDO_BANCO', val: processed?.saldo, unit: '€', color: 'text-purple-400' },
+          { label: 'KPI_EFICIENCIA', val: processed?.efficiencyRatio, unit: '%', color: 'text-orange-400' }
         ].map((kpi, i) => (
-          <div key={i} className="glass px-3 py-4 rounded-2xl border border-white/10 flex flex-col justify-center bg-black/40 backdrop-blur-xl">
-            <p className="text-[7px] font-black uppercase text-white/30 tracking-[0.2em] leading-none mb-1">{kpi.label}</p>
-            <h4 className={`text-2xl md:text-4xl font-black italic tracking-tighter ${kpi.color} leading-none`}>
-              {formatRMNum(kpi.val || 0)}<span className="text-[10px] opacity-40 ml-0.5 not-italic uppercase font-bold">{kpi.unit}</span>
+          <div key={i} className="glass px-3 py-5 rounded-2xl border border-white/10 flex flex-col justify-center bg-black/50 shadow-2xl">
+            <p className="text-[8px] font-black uppercase text-white/30 tracking-[0.2em] mb-1.5">{kpi.label}</p>
+            <h4 className={`text-2xl md:text-3xl font-black italic tracking-tighter ${kpi.color} leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,1)]`}>
+              {formatRMNum(kpi.val || 0)}<span className="text-[10px] opacity-40 ml-1 not-italic uppercase font-bold">{kpi.unit}</span>
             </h4>
           </div>
         ))}
       </div>
 
-      {/* CHART TOGGLE SLIM */}
-      <button 
-        onClick={() => setShowChart(!showChart)}
-        className="w-full py-1.5 glass rounded-lg border border-white/5 text-[7px] font-black uppercase tracking-[0.5em] text-white/20 hover:text-blue-400 transition-all shrink-0"
-      >
-        {showChart ? 'COLAPSAR ANALÍTICA' : 'EXPANDIR ANALÍTICA'}
-      </button>
+      {/* CONTROLES_PRINCIPALES */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <button 
+          onClick={() => setShowChart(!showChart)}
+          className={`w-full py-5 glass rounded-2xl border-2 transition-all shadow-2xl text-[10px] font-black uppercase tracking-[0.4em] ${showChart ? 'bg-blue-600 border-blue-400 text-white' : 'border-blue-500/30 text-blue-400 hover:bg-blue-500/10'}`}
+        >
+          {showChart ? 'CERRAR_ANALÍTICA' : 'VER_ANALÍTICA_MES'}
+        </button>
+        <button 
+          onClick={() => setShowSheets(!showSheets)}
+          className={`w-full py-5 glass rounded-2xl border-2 transition-all shadow-2xl text-[10px] font-black uppercase tracking-[0.4em] ${showSheets ? 'bg-green-600 border-green-400 text-white' : 'border-green-500/30 text-green-400 hover:bg-green-500/10'}`}
+        >
+          {showSheets ? 'CERRAR_MATRIZ' : 'VER_MATRIZ_GLOBAL'}
+        </button>
+      </div>
+
+      {showSheets && (
+        <div className="h-[70vh] w-full animate-in zoom-in-95 duration-500 shadow-2xl">
+           <SheetsView />
+        </div>
+      )}
 
       {showChart && (
-        <div className="glass rounded-xl border border-blue-500/10 bg-black/40 p-2 h-[120px] md:h-[160px] animate-in slide-in-from-top duration-300 shrink-0">
+        <div className="glass rounded-[35px] border border-white/10 bg-black/60 p-6 h-[280px] md:h-[350px] animate-in slide-in-from-top duration-500 shadow-2xl">
            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={processed?.history || []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" vertical={false} />
-                <XAxis dataKey="mes" stroke="rgba(255,255,255,0.2)" fontSize={7} tickLine={false} axisLine={false} />
+              <BarChart data={processed?.history || []} margin={{ top: 30, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                <XAxis dataKey="mes" stroke="rgba(255,255,255,0.3)" fontSize={11} fontWeight="800" tickLine={false} axisLine={false} dy={10} />
                 <YAxis hide />
-                <Tooltip contentStyle={{backgroundColor: '#000', border: '1px solid #3b82f6', fontSize: '8px', borderRadius: '8px'}} />
-                <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" strokeDasharray="3 3" />
-                <Bar name="ING" dataKey="ingresos" fill="#3b82f6" radius={[2, 2, 0, 0]} barSize={8} />
-                <Bar name="GAS" dataKey="gastos" fill="#ef4444" radius={[2, 2, 0, 0]} barSize={8} />
+                <Tooltip contentStyle={{backgroundColor: '#000', border: '2px solid #3b82f6', fontSize: '12px', borderRadius: '15px', fontWeight: '900'}} />
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                <Bar name="INGRESOS" dataKey="ingresos" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={28}>
+                   <LabelList dataKey="ingresos" position="top" fill="#3b82f6" fontSize={9} fontWeight="900" formatter={(v:any) => v > 0 ? `${formatRMNum(v)}` : ''} />
+                </Bar>
+                <Bar name="GASTOS" dataKey="gastos" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={28}>
+                   <LabelList dataKey="gastos" position="top" fill="#ef4444" fontSize={9} fontWeight="900" formatter={(v:any) => v > 0 ? `${formatRMNum(v)}` : ''} />
+                </Bar>
               </BarChart>
            </ResponsiveContainer>
         </div>
       )}
 
-      {/* GRID DE DATOS PRINCIPALES */}
-      <div className="flex flex-col md:flex-row gap-3">
-        
-        {/* COLUMNA CATEGORÍAS */}
-        <div className={`glass rounded-[30px] border border-white/5 bg-black/20 flex flex-col p-4 md:p-5 flex-[1.2] transition-all duration-300 ${isMobile && !showCategoriesMobile ? 'h-[55px] overflow-hidden' : 'h-auto'}`}>
-          <div className="flex justify-between items-center mb-3 shrink-0">
-             <h4 className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-blue-400 italic">CATEGORÍAS_MES</h4>
+      {/* SECCIONES_EXPANDIDAS */}
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* PANEL_CATEGORÍAS */}
+        <div className={`glass rounded-[40px] border border-white/10 bg-black/40 flex flex-col p-6 lg:p-8 flex-1 transition-all duration-300 shadow-2xl ${isMobile && !showCategoriesMobile ? 'h-[95px] overflow-hidden' : 'h-auto'}`}>
+          <div className="flex justify-between items-center mb-8 shrink-0 gap-3">
+             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400 italic flex-1 truncate">CATEGORÍAS_MENSUAL</h4>
              {isMobile && (
                <button 
                 onClick={(e) => { e.preventDefault(); setShowCategoriesMobile(!showCategoriesMobile); }}
-                className="px-4 py-2 bg-blue-600/20 border border-blue-500/40 rounded-xl text-[9px] font-black text-blue-400 uppercase tracking-widest active:scale-95 transition-all"
+                className={`px-8 py-3 rounded-2xl text-[9px] font-black uppercase transition-all shadow-lg shrink-0 border-2 ${showCategoriesMobile ? 'bg-red-600 border-red-400 text-white' : 'bg-blue-600 border-blue-400 text-white active:scale-95'}`}
                >
-                 {showCategoriesMobile ? 'CERRAR' : 'VER'}
+                 {showCategoriesMobile ? 'CERRAR_LISTA' : 'VER_LISTA'}
                </button>
              )}
           </div>
           
           {(showCategoriesMobile || !isMobile) && (
-            <div className="space-y-2.5">
+            <div className="space-y-4">
               {processed?.categories.map((cat: any, i: number) => (
-                <div key={i} className="bg-white/[0.02] p-3 md:p-4 rounded-xl border border-white/5 flex flex-col gap-1.5 hover:bg-white/5 transition-all">
+                <div key={i} className="bg-white/[0.03] p-5 rounded-2xl border border-white/5 flex flex-col gap-3 hover:bg-white/10 transition-all shadow-md">
                   <div className="flex justify-between items-center">
-                    <span className="text-[10px] md:text-xs font-black text-white/90 uppercase tracking-tight truncate pr-2">{cat.name}</span>
-                    <span className={`text-[11px] md:text-sm font-black italic ${cat.percent > 100 ? 'text-red-500' : 'text-blue-400'}`}>{cat.percent}%</span>
+                    <span className="text-[12px] font-black text-white uppercase tracking-tight truncate pr-4">{cat.name?.replace(' ', '_')}</span>
+                    <span className={`text-base font-black italic ${cat.percent > 100 ? 'text-red-500 animate-pulse' : 'text-blue-400'}`}>{cat.percent}%</span>
                   </div>
-                  <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                    <div className={`h-full transition-all duration-700 ${cat.percent > 100 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(100, cat.percent)}%` }} />
+                  <div className="w-full h-2.5 bg-black/60 rounded-full overflow-hidden border border-white/10">
+                    <div className={`h-full transition-all duration-1000 ${cat.percent > 100 ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.5)]' : 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.5)]'}`} style={{ width: `${Math.min(100, cat.percent)}%` }} />
                   </div>
                 </div>
               ))}
@@ -192,31 +208,31 @@ const FinanceView: React.FC = () => {
           )}
         </div>
 
-        {/* COLUMNA TRANSACCIONES (REGISTROS) - AHORA COLAPSABLE EN MÓVIL */}
-        <div className={`glass rounded-[30px] border border-white/5 bg-black/20 flex flex-col p-4 md:p-5 flex-1 transition-all duration-300 ${isMobile && !showTransactionsMobile ? 'h-[55px] overflow-hidden' : 'h-auto min-h-[400px]'}`}>
-          <div className="flex justify-between items-center mb-4 shrink-0">
-             <h4 className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-green-400 italic">REGISTROS_HISTÓRICOS</h4>
+        {/* PANEL_TRANSACCIONES */}
+        <div className={`glass rounded-[40px] border border-white/10 bg-black/40 flex flex-col p-6 lg:p-8 flex-1 transition-all duration-300 shadow-2xl ${isMobile && !showTransactionsMobile ? 'h-[95px] overflow-hidden' : 'h-auto min-h-[500px]'}`}>
+          <div className="flex justify-between items-center mb-8 shrink-0 gap-3">
+             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-green-400 italic flex-1 truncate">REGISTRO_LOG_NEXUS</h4>
              {isMobile ? (
                <button 
                 onClick={(e) => { e.preventDefault(); setShowTransactionsMobile(!showTransactionsMobile); }}
-                className="px-4 py-2 bg-blue-600/20 border border-blue-500/40 rounded-xl text-[9px] font-black text-blue-400 uppercase tracking-widest active:scale-95 transition-all"
+                className={`px-8 py-3 rounded-2xl text-[9px] font-black uppercase transition-all shadow-lg shrink-0 border-2 ${showTransactionsMobile ? 'bg-red-600 border-red-400 text-white' : 'bg-green-600 border-green-400 text-white active:scale-95'}`}
                >
-                 {showTransactionsMobile ? 'CERRAR' : 'VER'}
+                 {showTransactionsMobile ? 'CERRAR_LOG' : 'VER_LOG'}
                </button>
              ) : (
-               <span className="text-[7px] font-mono text-white/20 uppercase tracking-widest">REAL_TIME</span>
+               <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest animate-pulse">SINCRO_ACTIVA</span>
              )}
           </div>
           
           {(showTransactionsMobile || !isMobile) && (
-            <div className="space-y-1">
+            <div className="space-y-3">
               {processed?.transactions.map((tx: any, i: number) => (
-                <div key={i} className={`flex justify-between items-center py-2.5 px-3 rounded-xl border-b border-white/[0.02] ${i % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}`}>
-                  <div className="min-w-0 pr-4">
-                    <p className="text-[10px] font-black text-white/80 truncate uppercase leading-tight">{tx.desc}</p>
-                    <p className="text-[7px] font-bold text-white/20 uppercase mt-1 tracking-tighter">{tx.fecha} • {tx.cat}</p>
+                <div key={i} className={`flex justify-between items-center py-4 px-6 rounded-2xl border border-white/5 shadow-sm hover:border-white/20 transition-all ${i % 2 === 0 ? 'bg-white/[0.04]' : 'bg-transparent'}`}>
+                  <div className="min-w-0 pr-6">
+                    <p className="text-[12px] font-black text-white/90 truncate uppercase leading-tight drop-shadow-md">{tx.desc?.replace(' ', '_')}</p>
+                    <p className="text-[8px] font-bold text-white/20 uppercase mt-2 tracking-widest font-mono">{tx.fecha} // {tx.cat?.replace(' ', '_')}</p>
                   </div>
-                  <span className={`text-[11px] font-black tabular-nums shrink-0 italic ${tx.montoNum < 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <span className={`text-[14px] font-black tabular-nums shrink-0 italic drop-shadow-lg ${tx.montoNum < 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {tx.monto.replace('€', '')}
                   </span>
                 </div>
@@ -224,51 +240,6 @@ const FinanceView: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-
-      {/* GOOGLE SHEETS MINIATURIZADO - RANGO A1:S40 */}
-      <div className="mt-4 flex flex-col gap-2">
-        <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 ml-4 mb-1 italic">NEXUS_MATRIX_PREVIEW [A1:S40]</h4>
-        <div className="glass rounded-[35px] border border-white/10 bg-black/40 h-[380px] md:h-[550px] relative overflow-hidden shadow-2xl group transition-all hover:border-blue-500/30">
-          
-          <div className="absolute top-4 left-6 z-20 flex items-center gap-3 bg-black/80 px-4 py-2 rounded-xl border border-white/5 backdrop-blur-md">
-             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_green]" />
-             <span className="text-[9px] font-black text-white uppercase tracking-widest">RM_GLOBAL_SYNC // LIVE_DATA</span>
-          </div>
-
-          {!sheetLoaded && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a0a] z-10">
-               <div className="w-10 h-10 border-2 border-white/5 border-t-green-500 rounded-full animate-spin mb-4" />
-               <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.5em]">Establishing Matrix Link...</p>
-            </div>
-          )}
-
-          <div className="w-full h-full overflow-hidden bg-white">
-            <iframe 
-              src={embedUrl}
-              style={{
-                width: '154%', 
-                height: '154%', 
-                transform: 'scale(0.65)',
-                transformOrigin: '0 0',
-              }}
-              className={`border-none transition-all duration-1000 ${sheetLoaded ? 'opacity-100' : 'opacity-0 scale-[0.6] blur-xl'}`}
-              onLoad={() => setSheetLoaded(true)}
-              title="RM Matriz Logistica Mini"
-            />
-          </div>
-          
-          <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_60px_rgba(0,0,0,0.4)]" />
-        </div>
-      </div>
-
-      {/* FOOTER BARRA DE STATUS */}
-      <div className="glass-dark mt-2 px-4 py-3 rounded-xl flex justify-between items-center border border-white/10 shrink-0 bg-black/60">
-         <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-500/40 animate-pulse" />
-            <span className="text-[7px] font-black text-white/20 uppercase tracking-widest">NEXUS_FINANCE_v5.1_STABLE</span>
-         </div>
-         <span className="text-[7px] font-mono text-white/10 uppercase italic">MATRIX_CONNECTION_ESTABLISHED // MINI_ENABLED</span>
       </div>
     </div>
   );

@@ -26,7 +26,9 @@ const App: React.FC = () => {
   const applyConfig = (config: any) => {
     if (!config) return;
     localStorage.setItem('nexus_ha_config', JSON.stringify(config));
-    if (config.custom_bg_url) setBgUrl(config.custom_bg_url);
+    if (config.custom_bg_url) {
+      setBgUrl(config.custom_bg_url);
+    }
     setTimeout(() => {
         window.dispatchEvent(new Event('rm_config_updated'));
     }, 150);
@@ -34,8 +36,10 @@ const App: React.FC = () => {
 
   const startupSequence = useCallback(async (username: string) => {
     setSyncState('syncing');
+    
     let haUrl = DEFAULT_HA_URL;
     let haToken = DEFAULT_HA_TOKEN;
+    
     const savedConfigRaw = localStorage.getItem('nexus_ha_config');
     if (savedConfigRaw) {
       try {
@@ -44,8 +48,10 @@ const App: React.FC = () => {
         if (parsed.token) haToken = parsed.token;
       } catch (e) {}
     }
+
     try {
       const config = await fetchMasterConfig(username, haUrl, haToken);
+      
       if (config) {
         applyConfig(config);
         setSyncState('success');
@@ -62,6 +68,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const session = localStorage.getItem('nexus_session_active');
     const storedUser = localStorage.getItem('nexus_user');
+    
     if (session === 'true' && storedUser) {
       setUser(storedUser);
       startupSequence(storedUser);
@@ -71,6 +78,7 @@ const App: React.FC = () => {
   const handleLogin = (username: string) => {
     const formalName = username.trim().toLowerCase() === 'juanmi' ? 'Juanmi' : 
                        username.trim().toLowerCase() === 'noemi' ? 'Noemi' : username;
+    
     localStorage.setItem('nexus_session_active', 'true');
     localStorage.setItem('nexus_user', formalName);
     setUser(formalName);
@@ -104,11 +112,10 @@ const App: React.FC = () => {
   return (
     <div 
       className="flex flex-col md:flex-row h-[100dvh] w-screen overflow-hidden text-white relative transition-all duration-1000 bg-cover bg-center bg-fixed bg-no-repeat"
-      style={{ backgroundImage: `url('${bgUrl}')` }}
+      style={{ 
+        backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.6), rgba(2, 6, 23, 0.85)), url('${bgUrl}')`
+      }}
     >
-      {/* Capa de oscuridad superior reforzada para visibilidad de Dynamic Island */}
-      <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none z-20" />
-
       <Sidebar 
         activeSection={activeSection} 
         onSectionChange={setActiveSection} 
@@ -117,23 +124,23 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden">
-        {/* Header - Con sombras más fuertes para el fondo claro */}
-        <header className="flex justify-between items-end px-6 md:px-8 pb-4 pt-[env(safe-area-inset-top)] shrink-0 z-30">
+        {/* Header con padding superior para área segura (iPhone 15 / Dynamic Island) */}
+        <header className="flex justify-between items-center px-6 md:px-8 pb-4 pt-[calc(var(--sat)+1rem)] md:py-8 shrink-0">
           <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white drop-shadow-[0_4px_15px_rgba(0,0,0,1)] leading-none">
-              NEXUS <span className="text-blue-400">HUB</span>
+            <h1 className="text-xl md:text-3xl font-light tracking-tighter text-white/90 truncate">
+              NEXUS <span className="font-bold text-blue-400">HUB</span>
             </h1>
-            <p className="text-white/80 text-[7px] md:text-[9px] uppercase tracking-[0.6em] font-black truncate mt-1.5 bg-black/60 backdrop-blur-md inline-block px-3 py-1 rounded-full border border-white/10 shadow-lg">
+            <p className="text-white/20 text-[8px] md:text-[9px] uppercase tracking-[0.5em] font-black truncate mt-1">
                {user} // OS_STABLE
             </p>
           </div>
-          <button onClick={() => setShowAI(!showAI)} className="p-3 bg-blue-600/40 backdrop-blur-2xl rounded-full border border-blue-500/50 active:scale-90 transition-all shadow-2xl">
-             <div className={`w-2.5 h-2.5 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-blue-400'}`} />
+          <button onClick={() => setShowAI(!showAI)} className="p-3 glass rounded-full border border-blue-400/20 active:scale-90 transition-all">
+             <div className={`w-2 h-2 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-white/40'}`} />
           </button>
         </header>
 
-        {/* Content Area - Capas de cristal más oscuras */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-8 pb-[calc(env(safe-area-inset-bottom)+85px)] md:pb-8 pt-2">
+        {/* El contenido principal ya no tiene mobile-safe-top porque el header lo gestiona */}
+        <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-8 pb-[calc(var(--sab)+100px)] md:pb-8">
            {activeSection === AppSection.DASHBOARD && <Dashboard key="dash" />}
            {activeSection === AppSection.ENERGY && <EnergyView key="energy" />}
            {activeSection === AppSection.VEHICLE && <VehicleView key="vehicle" />}
