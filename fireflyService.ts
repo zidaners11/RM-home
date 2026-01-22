@@ -1,15 +1,23 @@
 
 /**
- * Nexus Finance Sync Engine v13.0 - Soporte de Mapeo por Coordenadas
+ * Nexus Finance Sync Engine v14.0 - Optimizado para Alta Velocidad
  */
 
+let financeCache: { data: any, timestamp: number } | null = null;
+const CACHE_DURATION = 60000; // 1 minuto
+
 export interface SheetMatrix {
-  raw: string[][];
-  getCell: (coord: string) => string;
-  getRange: (range: string) => string[];
+  matrix: string[][];
+  getCellValue: (coord: string) => string;
+  getRangeValues: (range: string) => string[];
 }
 
-export async function fetchFinanceFromSheets(sheetUrl: string) {
+export async function fetchFinanceFromSheets(sheetUrl: string): Promise<any> {
+  const now = Date.now();
+  if (financeCache && (now - financeCache.timestamp < CACHE_DURATION)) {
+    return financeCache.data;
+  }
+
   try {
     let fetchUrl = (sheetUrl || '').trim();
     if (!fetchUrl) return null;
@@ -18,10 +26,10 @@ export async function fetchFinanceFromSheets(sheetUrl: string) {
       if (!fetchUrl.includes('output=csv')) {
         fetchUrl += fetchUrl.includes('?') ? '&output=csv' : '?output=csv';
       }
-      fetchUrl += `&t=${Date.now()}`;
+      fetchUrl += `&t=${now}`;
     }
 
-    const response = await fetch(fetchUrl, { method: 'GET', mode: 'cors', cache: 'no-store' });
+    const response = await fetch(fetchUrl, { method: 'GET', cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP_${response.status}`);
     
     const csvData = await response.text();
@@ -29,8 +37,6 @@ export async function fetchFinanceFromSheets(sheetUrl: string) {
     if (lines.length === 0) return null;
 
     const delimiter = lines[0].includes(';') ? ';' : ',';
-    
-    // Convertimos el CSV en una matriz real [fila][columna]
     const matrix: string[][] = lines.map(line => {
       const regex = new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
       return line.split(regex).map(c => c.replace(/"/g, '').trim());
@@ -52,37 +58,14 @@ export async function fetchFinanceFromSheets(sheetUrl: string) {
       return matrix[row]?.[col] || "";
     };
 
-    const getRangeValues = (range: string) => {
-      const [start, end] = range.split(':');
-      const startMatch = start.match(/([A-Z]+)(\d+)/);
-      const endMatch = end.match(/([A-Z]+)(\d+)/);
-      if (!startMatch || !endMatch) return [];
-
-      const startCol = colToIndex(startMatch[1]);
-      const startRow = parseInt(startMatch[2]) - 1;
-      const endCol = colToIndex(endMatch[1]);
-      const endRow = parseInt(endMatch[2]) - 1;
-
-      const results = [];
-      for (let r = startRow; r <= endRow; r++) {
-        for (let c = startCol; c <= endCol; c++) {
-          results.push(matrix[r]?.[c] || "");
-        }
-      }
-      return results;
-    };
-
-    return {
+    const result = {
       matrix,
       getCellValue,
-      getRangeValues,
-      // Mantenemos compatibilidad con el sistema anterior si es necesario
-      oldFormat: {
-         transactions: [], // Se puede recrear si es necesario
-         budgets: [],
-         summaries: []
-      }
+      timestamp: now
     };
+
+    financeCache = { data: result, timestamp: now };
+    return result;
   } catch (e) {
     console.error("Finance Matrix Error:", e);
     return null;
