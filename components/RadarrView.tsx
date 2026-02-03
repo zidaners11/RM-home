@@ -33,7 +33,7 @@ const RadarrView: React.FC = () => {
         </div>
         <h3 className="text-xl font-black text-white uppercase tracking-widest mb-2">Radarr no Configurado</h3>
         <p className="text-white/40 max-w-sm text-xs leading-relaxed">
-          Debes definir la URL de acceso a Radarr en el panel de Ajustes > Network.
+          Debes definir la URL de acceso a Radarr en el panel de Ajustes - Network.
         </p>
       </div>
     );
