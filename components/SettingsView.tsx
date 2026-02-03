@@ -61,6 +61,13 @@ const SettingsView: React.FC = () => {
         try {
             const parsed = JSON.parse(savedLocal);
             workingConfig = { ...workingConfig, ...parsed };
+            // Aseguramos que los objetos anidados existan
+            if (!workingConfig.network) workingConfig.network = INITIAL_HA_CONFIG.network;
+            if (!workingConfig.network.adguard_entities) workingConfig.network.adguard_entities = INITIAL_HA_CONFIG.network.adguard_entities;
+            if (!workingConfig.network.radarr_entities) workingConfig.network.radarr_entities = INITIAL_HA_CONFIG.network.radarr_entities;
+            if (!workingConfig.network.crowdsec_entities) workingConfig.network.crowdsec_entities = INITIAL_HA_CONFIG.network.crowdsec_entities;
+            if (!workingConfig.network.dozzle_entities) workingConfig.network.dozzle_entities = INITIAL_HA_CONFIG.network.dozzle_entities;
+            
             setHaConfig(workingConfig);
         } catch (e) { console.error(e); }
     }
@@ -331,11 +338,38 @@ const SettingsView: React.FC = () => {
                         <input type="text" value={haConfig.network?.radarr_url || ''} onChange={(e) => setHaConfig({...haConfig, network: {...haConfig.network, radarr_url: e.target.value}})} placeholder="https://radarr.tudominio.com" className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-5 text-sm text-white focus:outline-none focus:border-blue-500/50" />
                     </div>
                  </div>
-                 <EntitySelector label="Monitores Uptime Kuma (Múltiple)" value={haConfig.network?.uptime_kuma_entities || []} multi filterPrefixes={['binary_sensor.uptime_kuma', 'sensor.uptime_kuma']} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, uptime_kuma_entities: v}})} />
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <EntitySelector label="AdGuard: Consultas /s" value={haConfig.network?.adguard_entities.queries} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, adguard_entities: {...haConfig.network.adguard_entities, queries: v}}})} />
-                    <EntitySelector label="AdGuard: Bloqueos" value={haConfig.network?.adguard_entities.blocked} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, adguard_entities: {...haConfig.network.adguard_entities, blocked: v}}})} />
+
+                 {/* UPTIME KUMA */}
+                 <EntitySelector 
+                    label="Monitores Uptime Kuma (Múltiple)" 
+                    value={haConfig.network?.uptime_kuma_entities || []} 
+                    multi 
+                    filterPrefixes={['binary_sensor', 'sensor']} 
+                    onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, uptime_kuma_entities: v}})} 
+                 />
+
+                 {/* ADGUARD */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <EntitySelector label="AdGuard: Consultas por segundo" value={haConfig.network?.adguard_entities.queries} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, adguard_entities: {...haConfig.network.adguard_entities, queries: v}}})} />
+                    <EntitySelector label="AdGuard: Bloqueos totales" value={haConfig.network?.adguard_entities.blocked} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, adguard_entities: {...haConfig.network.adguard_entities, blocked: v}}})} />
+                    <EntitySelector label="AdGuard: Ratio de bloqueo" value={haConfig.network?.adguard_entities.ratio} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, adguard_entities: {...haConfig.network.adguard_entities, ratio: v}}})} />
                  </div>
+
+                 {/* RADARR TELEMETRY */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <EntitySelector label="Radarr: Próximos estrenos" value={haConfig.network?.radarr_entities.upcoming} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, radarr_entities: {...haConfig.network.radarr_entities, upcoming: v}}})} />
+                    <EntitySelector label="Radarr: Estado sistema" value={haConfig.network?.radarr_entities.status} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, radarr_entities: {...haConfig.network.radarr_entities, status: v}}})} />
+                    <EntitySelector label="Radarr: Espacio en disco" value={haConfig.network?.radarr_entities.disk_space} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, radarr_entities: {...haConfig.network.radarr_entities, disk_space: v}}})} />
+                 </div>
+
+                 {/* CROWDSEC */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <EntitySelector label="CrowdSec: Alertas activas" value={haConfig.network?.crowdsec_entities.alerts} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, crowdsec_entities: {...haConfig.network.crowdsec_entities, alerts: v}}})} />
+                    <EntitySelector label="CrowdSec: IPs baneadas" value={haConfig.network?.crowdsec_entities.banned_ips} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, crowdsec_entities: {...haConfig.network.crowdsec_entities, banned_ips: v}}})} />
+                 </div>
+
+                 {/* DOZZLE */}
+                 <EntitySelector label="Dozzle: Contenedores activos" value={haConfig.network?.dozzle_entities.containers_active} onChange={(v:any) => setHaConfig({...haConfig, network: {...haConfig.network, dozzle_entities: {...haConfig.network.dozzle_entities, containers_active: v}}})} />
               </div>
             </div>
           )}
