@@ -16,14 +16,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange, onLog
     { id: AppSection.VEHICLE, icon: 'M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10 M16 16h3', label: 'Coche' },
     { id: AppSection.FINANCE, icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2', label: 'Finanzas' },
     { id: AppSection.SECURITY, icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z', label: 'Seguridad' },
+    { id: AppSection.NETWORK, icon: 'M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A10.003 10.003 0 0012 3m0 0a10.003 10.003 0 0110 10c0 1.956-.563 3.781-1.539 5.318l-.053.09a9.96 9.96 0 01-2.903 2.898m-.001 0l-.053.09A10.003 10.003 0 0112 21c-1.956 0-3.781-.563-5.318-1.539l-.09-.053a9.96 9.96 0 01-2.898-2.903', label: 'Infra' },
     { id: AppSection.WEATHER, icon: 'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z', label: 'Clima' },
-    { id: AppSection.MAPS, icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z', label: 'Radar' },
+    { id: AppSection.RADARR, icon: 'M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z', label: 'Cine' },
+    { id: AppSection.MAPS, icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z', label: 'Geo' },
     { id: AppSection.SETTINGS, icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066', label: 'Ajustes' },
   ];
 
   return (
     <>
-      {/* Desktop Sidebar */}
       <nav className="hidden md:flex flex-col w-24 bg-black/60 backdrop-blur-3xl border-r border-white/10 z-50 py-8 items-center h-screen shrink-0">
         <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 mb-10 shrink-0">
           <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -44,7 +45,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange, onLog
         </button>
       </nav>
       
-      {/* Mobile Tab Bar optimizada para iPhone 15 Pro (Dynamic Island / SafeArea) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(65px+var(--sab))] bg-black/80 backdrop-blur-3xl border-t border-white/10 z-[100] flex items-start justify-around px-2 pt-2 pb-[var(--sab)] shadow-[0_-10px_40px_rgba(0,0,0,0.8)] overflow-x-auto no-scrollbar">
         {menuItems.map((item) => (
           <button key={item.id} onClick={() => onSectionChange(item.id)} className={`flex flex-col items-center justify-center min-w-[55px] h-12 gap-0.5 transition-all ${activeSection === item.id ? 'text-blue-400 scale-105' : 'text-white/30'}`}>

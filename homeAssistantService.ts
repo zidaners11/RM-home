@@ -14,6 +14,36 @@ const getNormalizedSensorId = (username: string) => {
   return `sensor.nexus_config_${slug}`;
 };
 
+export async function logAccessFailure(username: string, url: string, token: string) {
+  const cleanUrl = url.replace(/\/$/, '');
+  try {
+    // Registramos el fallo en las notificaciones persistentes de HA para que CrowdSec pueda leer el log
+    await fetch(`${cleanUrl}/api/services/persistent_notification/create`, {
+      method: 'POST',
+      headers: { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "ALERTA SEGURIDAD: Intento de Acceso Fallido",
+        message: `Intento de acceso fallido para el ID: ${username} desde Kame House WebUI. Posible ataque de fuerza bruta detectado.`,
+        notification_id: `nexus_auth_fail_${Date.now()}`
+      })
+    });
+    
+    // También intentamos actualizar un sensor de seguridad dedicado
+    await fetch(`${cleanUrl}/api/states/sensor.nexus_security_logs`, {
+      method: 'POST',
+      headers: { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        state: "FALLO_AUTENTICACION",
+        attributes: {
+          last_failed_user: username,
+          timestamp: new Date().toISOString(),
+          event: "PROBABLE_FUERZA_BRUTA"
+        }
+      })
+    });
+  } catch (e) {}
+}
+
 function extractConfigFromRaw(input: any): any {
   if (!input) return null;
   let current = input;
@@ -55,10 +85,10 @@ export async function saveMasterConfig(username: string, config: any, url: strin
   const sensorId = getNormalizedSensorId(username);
   const cleanUrl = url.replace(/\/$/, '');
   const payload = {
-    state: 'Active',
+    state: 'Activo',
     attributes: {
-      friendly_name: `Nexus Config - ${formalUser}`,
-      icon: "mdi:nexus-hub",
+      friendly_name: `Kame House RM Config - ${formalUser}`,
+      icon: "mdi:home-assistant",
       last_sync: new Date().toISOString(),
       user: formalUser,
       config_data: config 
@@ -109,60 +139,29 @@ export async function callHAService(url: string, token: string, domain: string, 
   } catch (e) {}
 }
 
-/**
- * Fetch and parse AEMET XML for weather forecast
- */
 export async function fetchAemetXml(url: string) {
   try {
-    // Usamos el proxy para saltar el CORS
     const proxyUrl = `${CORS_PROXY}${encodeURIComponent(url)}`;
     const response = await fetch(proxyUrl);
-    
     if (!response.ok) return [];
-    
     const xmlText = await response.text();
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-    
     const dias = Array.from(xmlDoc.getElementsByTagName('dia'));
-    if (dias.length === 0) {
-      console.warn("[NEXUS] XML cargado pero no se encontraron etiquetas <dia>");
-      return [];
-    }
-    
+    if (dias.length === 0) return [];
     return dias.map(dia => {
       const fechaAttr = dia.getAttribute('fecha') || '';
-      
-      // Búsqueda profunda de temperaturas
       const tempMaxNode = dia.querySelector('temperatura maxima');
       const tempMinNode = dia.querySelector('temperatura minima');
       const tMax = tempMaxNode?.textContent || '0';
       const tMin = tempMinNode?.textContent || '0';
-      
-      // Probabilidades de precipitación (AEMET pone varias por tramos horarios, buscamos la más relevante o la primera)
       const probNodes = Array.from(dia.getElementsByTagName('prob_precipitacion'));
-      const popValue = probNodes.find(n => n.textContent && n.textContent !== '0' && n.textContent !== '')?.textContent 
-                       || probNodes[0]?.textContent || '0';
-      
-      // Estado del cielo
+      const popValue = probNodes.find(n => n.textContent && n.textContent !== '0' && n.textContent !== '')?.textContent || probNodes[0]?.textContent || '0';
       const cieloNodes = Array.from(dia.getElementsByTagName('estado_cielo'));
-      const estadoCielo = cieloNodes.find(n => n.getAttribute('descripcion'))?.getAttribute('descripcion') 
-                         || cieloNodes[0]?.getAttribute('descripcion') || 'Despejado';
-      
-      // Formatear fecha para el display (ej: LUN 24)
+      const estadoCielo = cieloNodes.find(n => n.getAttribute('descripcion'))?.getAttribute('descripcion') || cieloNodes[0]?.getAttribute('descripcion') || 'Despejado';
       const dateObj = new Date(fechaAttr);
       const dayLabel = dateObj.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).toUpperCase();
-      
-      return {
-        day: dayLabel,
-        max: parseInt(tMax),
-        min: parseInt(tMin),
-        pop: parseInt(popValue),
-        cond: estadoCielo
-      };
+      return { day: dayLabel, max: parseInt(tMax), min: parseInt(tMin), pop: parseInt(popValue), cond: estadoCielo };
     });
-  } catch (e) {
-    console.error("[NEXUS] Critical AEMET XML Error:", e);
-    return [];
-  }
+  } catch (e) { return []; }
 }

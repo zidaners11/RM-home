@@ -1,5 +1,5 @@
 
-export type WidgetType = 'sensor' | 'chart' | 'switch' | 'climate' | 'checklist' | 'button';
+export type WidgetType = 'sensor' | 'chart' | 'switch' | 'climate' | 'checklist' | 'button' | 'network_status';
 
 export interface SensorData {
   id: string;
@@ -59,15 +59,26 @@ export interface VehicleConfig {
   tank_capacity: number;
 }
 
-export interface CustomFinanceWidget {
-  id: string;
-  type: 'kpi' | 'bar' | 'line' | 'pie';
-  title: string;
-  cell?: string;
-  labelRange?: string;
-  valueRange?: string;
-  color?: string;
-  unit?: string;
+export interface NetworkConfig {
+  radarr_url?: string;
+  uptime_kuma_entities: string[];
+  adguard_entities: {
+    queries: string;
+    blocked: string;
+    ratio: string;
+  };
+  radarr_entities: {
+    upcoming: string;
+    status: string;
+    disk_space: string;
+  };
+  crowdsec_entities: {
+    alerts: string;
+    banned_ips: string;
+  };
+  dozzle_entities: {
+    containers_active: string;
+  };
 }
 
 export interface FireflyConfig {
@@ -77,7 +88,6 @@ export interface FireflyConfig {
   token?: string;
   main_account_id?: string;
   proxy_url?: string;
-  custom_widgets?: CustomFinanceWidget[];
 }
 
 export interface HomeAssistantConfig {
@@ -101,6 +111,7 @@ export interface HomeAssistantConfig {
   alarm_entity?: string;
   vehicle: VehicleConfig;
   finance: FireflyConfig;
+  network: NetworkConfig;
   custom_bg_url?: string; 
   weather_nodes: any;
 }
@@ -111,8 +122,10 @@ export enum AppSection {
   VEHICLE = 'vehicle',
   FINANCE = 'finance',
   SECURITY = 'security',
+  NETWORK = 'network',
   WEATHER = 'weather',
   MAPS = 'maps',
+  RADARR = 'radarr',
   SHEETS = 'sheets',
   SETTINGS = 'settings'
 }

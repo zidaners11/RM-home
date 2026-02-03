@@ -8,18 +8,18 @@ import EnergyView from './components/EnergyView';
 import VehicleView from './components/VehicleView';
 import FinanceView from './components/FinanceView';
 import SecurityView from './components/SecurityView';
+import NetworkView from './components/NetworkView';
 import WeatherView from './components/WeatherView';
 import MapView from './components/MapView';
 import SheetsView from './components/SheetsView';
 import SettingsView from './components/SettingsView';
-import AIInsightPanel from './components/AIInsightPanel';
+import RadarrView from './components/RadarrView';
 import { fetchMasterConfig, DEFAULT_HA_URL, DEFAULT_HA_TOKEN } from './homeAssistantService';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [user, setUser] = useState<string>('');
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.DASHBOARD);
-  const [showAI, setShowAI] = useState<boolean>(false);
   const [bgUrl, setBgUrl] = useState<string>('https://i.redd.it/6qq8lk9qjqp21.jpg');
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
 
@@ -82,6 +82,10 @@ const App: React.FC = () => {
     localStorage.setItem('nexus_session_active', 'true');
     localStorage.setItem('nexus_user', formalName);
     setUser(formalName);
+    handleLoginExtended(formalName);
+  };
+
+  const handleLoginExtended = (formalName: string) => {
     startupSequence(formalName);
   };
 
@@ -102,7 +106,7 @@ const App: React.FC = () => {
             <div className="w-24 h-24 border-2 border-blue-500/10 rounded-full mx-auto" />
             <div className="absolute inset-0 border-t-2 border-blue-500 rounded-full animate-spin shadow-[0_0_50px_rgba(59,130,246,0.3)]" />
             <div className="mt-12 space-y-4 px-6">
-               <h3 className="text-blue-400 font-black text-[10px] uppercase tracking-[0.5em] animate-pulse">Sincronizando Nexus Hub</h3>
+               <h3 className="text-blue-400 font-black text-[10px] uppercase tracking-[0.5em] animate-pulse">Sincronizando Sistema RM</h3>
             </div>
          </div>
       </div>
@@ -124,36 +128,40 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 relative z-10 flex flex-col h-full overflow-hidden">
-        {/* Header con padding superior para área segura (iPhone 15 / Dynamic Island) */}
         <header className="flex justify-between items-center px-6 md:px-8 pb-4 pt-[calc(var(--sat)+1rem)] md:py-8 shrink-0">
           <div className="min-w-0">
             <h1 className="text-xl md:text-3xl font-light tracking-tighter text-white/90 truncate">
-              NEXUS <span className="font-bold text-blue-400">HUB</span>
+              KAME HOUSE <span className="font-bold text-blue-400">RM</span>
             </h1>
             <p className="text-white/20 text-[8px] md:text-[9px] uppercase tracking-[0.5em] font-black truncate mt-1">
-               {user} // OS_STABLE
+               {user} // OS ESTABLE
             </p>
           </div>
-          <button onClick={() => setShowAI(!showAI)} className="p-3 glass rounded-full border border-blue-400/20 active:scale-90 transition-all">
-             <div className={`w-2 h-2 rounded-full ${showAI ? 'bg-blue-400 animate-ping' : 'bg-white/40'}`} />
-          </button>
+          <div className="flex items-center gap-3">
+             <div className="hidden md:flex flex-col items-end">
+                <span className="text-[7px] font-black text-white/20 uppercase tracking-widest">Sistema Operativo</span>
+                <span className="text-[9px] font-bold text-blue-400 uppercase italic">v4.2.0 Final</span>
+             </div>
+             <div className="w-10 h-10 glass rounded-full flex items-center justify-center border border-white/10">
+                <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+             </div>
+          </div>
         </header>
 
-        {/* El contenido principal ya no tiene mobile-safe-top porque el header lo gestiona */}
         <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-8 pb-[calc(var(--sab)+100px)] md:pb-8">
            {activeSection === AppSection.DASHBOARD && <Dashboard key="dash" />}
            {activeSection === AppSection.ENERGY && <EnergyView key="energy" />}
            {activeSection === AppSection.VEHICLE && <VehicleView key="vehicle" />}
            {activeSection === AppSection.FINANCE && <FinanceView key="finance" />}
            {activeSection === AppSection.SECURITY && <SecurityView key="security" />}
+           {activeSection === AppSection.NETWORK && <NetworkView key="network" />}
            {activeSection === AppSection.WEATHER && <WeatherView key="weather" />}
            {activeSection === AppSection.MAPS && <MapView key="maps" />}
+           {activeSection === AppSection.RADARR && <RadarrView key="radarr" />}
            {activeSection === AppSection.SHEETS && <SheetsView key="sheets" />}
            {activeSection === AppSection.SETTINGS && <SettingsView key="settings" />}
         </div>
       </main>
-      
-      {showAI && <AIInsightPanel onClose={() => setShowAI(false)} />}
     </div>
   );
 };

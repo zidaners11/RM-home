@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { WidgetConfig, HomeAssistantConfig } from '../types';
 import { fetchHAStates, callHAService, fetchHAHistory } from '../homeAssistantService';
-import { getGlobalNexusStatus } from '../geminiService';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 
 const formatKm = (val: any) => {
@@ -14,9 +13,7 @@ const formatKm = (val: any) => {
 const Dashboard: React.FC = () => {
   const [haStates, setHaStates] = useState<any[]>([]);
   const [haConfig, setHaConfig] = useState<HomeAssistantConfig | null>(null);
-  const [aiReport, setAiReport] = useState<{ text: string, sources: any[] }>({ text: 'Estableciendo enlace con RM Strategic Core...', sources: [] });
   const [historyData, setHistoryData] = useState<{[key: string]: any[]}>({});
-  const [loadingAI, setLoadingAI] = useState(true);
 
   const loadConfig = () => {
     const savedHA = localStorage.getItem('nexus_ha_config');
@@ -54,15 +51,6 @@ const Dashboard: React.FC = () => {
           setHistoryData(prev => ({ ...prev, [w.entity_id]: processed }));
         }
       });
-
-      if (loadingAI) {
-        const report = await getGlobalNexusStatus({ 
-          solar: states.find((s: any) => s.entity_id === config.solar_production_entity)?.state || 0,
-          energy: states.find((s: any) => s.entity_id === config.grid_consumption_entity)?.state || 0
-        });
-        setAiReport(report);
-        setLoadingAI(false);
-      }
     }
   };
 
@@ -164,28 +152,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 md:gap-8 h-full pb-10">
-      <div className="glass rounded-[35px] md:rounded-[50px] p-6 md:p-8 border border-blue-500/10 relative overflow-hidden bg-black/60 shrink-0 shadow-2xl">
-         <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center">
-            <div className="relative shrink-0">
-               <div className="w-14 h-14 md:w-16 md:h-16 bg-blue-600 rounded-[22px] flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.4)]">
-                  <svg className="w-7 h-7 md:w-8 md:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-               </div>
-               <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-black border-2 border-blue-500 rounded-full flex items-center justify-center">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
-               </div>
-            </div>
-            <div className="text-center md:text-left flex-1">
-               <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 italic">RM NEXUS STRATEGIC CORE</h2>
-                  <span className="h-px w-12 bg-blue-500/20" />
-               </div>
-               <div className={`text-xs md:text-[15px] leading-relaxed text-white/80 font-medium ${loadingAI ? 'animate-pulse opacity-40' : ''}`}>
-                  {aiReport.text}
-               </div>
-            </div>
-         </div>
-      </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 px-1 auto-rows-min">
          {(haConfig?.dashboardWidgets || []).map(renderWidget)}
       </div>
