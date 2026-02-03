@@ -1,47 +1,71 @@
 
 /**
- * Nexus Home Assistant Bridge - Persistencia de Alta Disponibilidad
+ * Kame House RM - Home Assistant Bridge
  */
 
 export const DEFAULT_HA_URL = "https://3p30htdlzk9a3yu1yzb04956g3pkp1ky.ui.nabu.casa";
 export const DEFAULT_HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJmNzQ5MGY5ZTUwNTA0NTAwYTYwNzQzMTcyZDBjZDI0NCIsImlhdCI6MTc2NzM3NDA1NywiZXhwIjoyMDgyNzM0MDU3fQ.yoa9yRBkizc1PjFzR7imtu7njshEKWKRN3S0dWkRON0";
 
-// Proxy para evitar bloqueos de CORS al consultar AEMET directamente
 const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
-const getNormalizedSensorId = (username: string) => {
-  const slug = username.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^\w\-]+/g, '');
-  return `sensor.nexus_config_${slug}`;
-};
+/**
+ * Función CRÍTICA para CrowdSec.
+ * Al no poder escribir archivos desde el navegador, generamos una entrada en el access.log de Nginx.
+ * Configura CrowdSec para buscar "/auth/audit/failure" en tus logs de Nginx.
+ */
+export async function recordAuthAudit(username: string, status: 'success' | 'failure') {
+  const timestamp = Date.now();
+  const auditPath = `/auth/audit/${status}?u=${encodeURIComponent(username)}&t=${timestamp}`;
+  
+  try {
+    // Intentamos llamar a una ruta local. Nginx registrará esto en access.log
+    // aunque devuelva un 404, la línea del log contendrá el usuario y el estado.
+    await fetch(auditPath, { priority: 'low' });
+  } catch (e) {
+    // El error es esperado si la ruta no existe, pero Nginx ya lo habrá logueado.
+  }
+}
 
 export async function logAccessFailure(username: string, url: string, token: string) {
   const cleanUrl = url.replace(/\/$/, '');
+  // 1. Registro en Nginx para CrowdSec
+  await recordAuthAudit(username, 'failure');
+
+  // 2. Registro en Home Assistant
   try {
-    // Registramos el fallo en las notificaciones persistentes de HA para que CrowdSec pueda leer el log
     await fetch(`${cleanUrl}/api/services/persistent_notification/create`, {
       method: 'POST',
       headers: { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: "ALERTA SEGURIDAD: Intento de Acceso Fallido",
-        message: `Intento de acceso fallido para el ID: ${username} desde Kame House WebUI. Posible ataque de fuerza bruta detectado.`,
-        notification_id: `nexus_auth_fail_${Date.now()}`
-      })
-    });
-    
-    // También intentamos actualizar un sensor de seguridad dedicado
-    await fetch(`${cleanUrl}/api/states/sensor.nexus_security_logs`, {
-      method: 'POST',
-      headers: { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        state: "FALLO_AUTENTICACION",
-        attributes: {
-          last_failed_user: username,
-          timestamp: new Date().toISOString(),
-          event: "PROBABLE_FUERZA_BRUTA"
-        }
+        title: "SEGURIDAD: Intento Fallido",
+        message: `Usuario: ${username}. IP registrada en logs de Nginx.`,
+        notification_id: `auth_fail_${Date.now()}`
       })
     });
   } catch (e) {}
+}
+
+const getNormalizedSensorId = (username: string) => {
+  const slug = username.toLowerCase().trim().replace(/\s+/g, '').replace(/[^\w\-]+/g, '');
+  return `sensor.nexus_config_${slug}`;
+};
+
+export async function fetchMasterConfig(username: string, url: string, token: string) {
+  const cleanUrl = url.replace(/\/$/, '');
+  const authHeader = { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" };
+  const targetIds = [getNormalizedSensorId(username), 'sensor.nexus_ultimo_estado'];
+  
+  for (const entityId of targetIds) {
+    try {
+      const response = await fetch(`${cleanUrl}/api/states/${entityId}`, { method: 'GET', headers: authHeader });
+      if (response.ok) {
+        const data = await response.json();
+        const extracted = extractConfigFromRaw(data);
+        if (extracted) return extracted;
+      }
+    } catch (e) {}
+  }
+  return null;
 }
 
 function extractConfigFromRaw(input: any): any {
@@ -56,28 +80,9 @@ function extractConfigFromRaw(input: any): any {
       }
     } catch (e) { return null; }
   }
-  if (current.attributes?.a) return extractConfigFromRaw(current.attributes.a);
-  if (current.json?.config_data) return current.json.config_data;
+  if (current.attributes?.config_data) return current.attributes.config_data;
   if (current.config_data) return current.config_data;
-  if (current.json) return extractConfigFromRaw(current.json);
   return (typeof current === 'object' && !Array.isArray(current)) ? current : null;
-}
-
-export async function fetchMasterConfig(username: string, url: string, token: string) {
-  const cleanUrl = url.replace(/\/$/, '');
-  const authHeader = { "Authorization": `Bearer ${token.trim()}`, "Content-Type": "application/json" };
-  const targetIds = ['sensor.nexus_ultimo_estado', getNormalizedSensorId(username)];
-  for (const entityId of targetIds) {
-    try {
-      const response = await fetch(`${cleanUrl}/api/states/${entityId}`, { method: 'GET', headers: authHeader });
-      if (response.ok) {
-        const data = await response.json();
-        const extracted = extractConfigFromRaw(data);
-        if (extracted && (extracted.url || extracted.dashboardWidgets)) return extracted;
-      }
-    } catch (e) {}
-  }
-  return null;
 }
 
 export async function saveMasterConfig(username: string, config: any, url: string, token: string) {
@@ -151,14 +156,11 @@ export async function fetchAemetXml(url: string) {
     if (dias.length === 0) return [];
     return dias.map(dia => {
       const fechaAttr = dia.getAttribute('fecha') || '';
-      const tempMaxNode = dia.querySelector('temperatura maxima');
-      const tempMinNode = dia.querySelector('temperatura minima');
-      const tMax = tempMaxNode?.textContent || '0';
-      const tMin = tempMinNode?.textContent || '0';
+      const tMax = dia.querySelector('temperatura maxima')?.textContent || '0';
+      const tMin = dia.querySelector('temperatura minima')?.textContent || '0';
       const probNodes = Array.from(dia.getElementsByTagName('prob_precipitacion'));
       const popValue = probNodes.find(n => n.textContent && n.textContent !== '0' && n.textContent !== '')?.textContent || probNodes[0]?.textContent || '0';
-      const cieloNodes = Array.from(dia.getElementsByTagName('estado_cielo'));
-      const estadoCielo = cieloNodes.find(n => n.getAttribute('descripcion'))?.getAttribute('descripcion') || cieloNodes[0]?.getAttribute('descripcion') || 'Despejado';
+      const estadoCielo = dia.querySelector('estado_cielo')?.getAttribute('descripcion') || 'Despejado';
       const dateObj = new Date(fechaAttr);
       const dayLabel = dateObj.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).toUpperCase();
       return { day: dayLabel, max: parseInt(tMax), min: parseInt(tMin), pop: parseInt(popValue), cond: estadoCielo };

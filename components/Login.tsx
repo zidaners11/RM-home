@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { logAccessFailure, DEFAULT_HA_URL, DEFAULT_HA_TOKEN } from '../homeAssistantService';
+import { logAccessFailure, recordAuthAudit, DEFAULT_HA_URL, DEFAULT_HA_TOKEN } from '../homeAssistantService';
 
 interface LoginProps {
   onLogin: (user: string) => void;
@@ -14,11 +14,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const userLower = username.toLowerCase().trim();
     const validUsers = ['juanmi', 'noemi'];
     const masterPass = 'Juanmi0709@';
 
-    if (validUsers.includes(username.toLowerCase()) && password === masterPass) {
-      const formalName = username.charAt(0).toUpperCase() + username.slice(1).toLowerCase();
+    if (validUsers.includes(userLower) && password === masterPass) {
+      const formalName = userLower.charAt(0).toUpperCase() + userLower.slice(1);
+      
+      // Log de éxito para Nginx
+      await recordAuthAudit(formalName, 'success');
+      
       localStorage.setItem('nexus_user', formalName);
       if (rememberMe) {
         localStorage.setItem('nexus_remember', 'true');
@@ -37,7 +42,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           if (cfg.token) token = cfg.token;
         } catch(e) {}
       }
-      await logAccessFailure(username, url, token);
+      // Log de fallo para CrowdSec y HA
+      await logAccessFailure(username || 'anonymous', url, token);
       setTimeout(() => setError(false), 2000);
     }
   };
@@ -72,9 +78,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
              <input 
                type="text" 
                value={username}
+               autoComplete="username"
                onChange={(e) => setUsername(e.target.value)}
                className="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-5 text-white outline-none focus:border-blue-500/50 font-bold transition-all uppercase placeholder:text-white/10"
-               placeholder="IDENTIFICADOR"
+               placeholder="INTRODUCIR ID"
              />
           </div>
           <div className="space-y-1">
@@ -82,6 +89,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
              <input 
                type="password" 
                value={password}
+               autoComplete="current-password"
                onChange={(e) => setPassword(e.target.value)}
                className="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-5 text-white outline-none focus:border-blue-500/50 font-bold transition-all placeholder:text-white/10"
                placeholder="••••••••••••"
@@ -107,7 +115,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         {error && (
           <div className="w-full py-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center gap-3">
              <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
-             <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">Credenciales Inválidas</p>
+             <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">Acceso Denegado</p>
           </div>
         )}
 
